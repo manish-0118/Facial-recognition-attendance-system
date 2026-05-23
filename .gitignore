@@ -16,7 +16,7 @@ __pycache__/
 *.sqlite3
 
 # Trained models and dataset (large files)
-#dataset/
+dataset/
 
 # Backups
 backups/
@@ -50,3 +50,4 @@ build/
 attendance/*.pdf
 attendance/*.csv
 attendance/*.xlsx
+
