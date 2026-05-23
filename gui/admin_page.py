@@ -1,0 +1,313 @@
+from __future__ import annotations
+
+import customtkinter as ctk
+
+from core.database import add_admin, delete_admin, get_all_admins, log_action
+
+
+class AdminPage(ctk.CTkFrame):
+    def __init__(self, master, username: str = "", role: str = "") -> None:
+        super().__init__(master, fg_color="transparent")
+        self.master_frame = master
+        self.username = username
+        self.role = role
+        self._row_widgets: list[ctk.CTkBaseClass] = []
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+        header = ctk.CTkFrame(self, fg_color="#1A1A1A", corner_radius=0, height=60)
+        header.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
+        ctk.CTkLabel(header, text="Admin Management", font=ctk.CTkFont(size=20, weight="bold"), text_color="white").pack(side="left", padx=20, pady=15)
+        body = ctk.CTkFrame(self, fg_color="transparent")
+        body.grid(row=1, column=0, sticky="nsew")
+        body.grid_columnconfigure(0, weight=1)
+        body.grid_rowconfigure(0, weight=1)
+
+        self._build_add_form(body)
+        self._build_table(body)
+
+        self.refresh()
+
+    def _build_add_form(self, parent) -> None:
+        form_card = ctk.CTkFrame(parent, fg_color="#1A1A1A", corner_radius=14)
+        form_card.grid(row=0, column=0, sticky="ew", padx=20, pady=(20, 14))
+        form_card.grid_columnconfigure(1, weight=1)
+        form_card.grid_columnconfigure(3, weight=1)
+
+        ctk.CTkLabel(
+            form_card,
+            text="Add Admin",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color="white",
+        ).grid(row=0, column=0, columnspan=5, sticky="w", padx=18, pady=(16, 12))
+
+        ctk.CTkLabel(form_card, text="Username", text_color="#888888").grid(row=1, column=0, sticky="w", padx=(18, 8), pady=(0, 8))
+        self.username_entry = ctk.CTkEntry(form_card, height=38, placeholder_text="Enter username")
+        self.username_entry.grid(row=1, column=1, sticky="ew", padx=(0, 16), pady=(0, 8))
+
+        ctk.CTkLabel(form_card, text="Password", text_color="#888888").grid(row=1, column=2, sticky="w", padx=(0, 8), pady=(0, 8))
+        self.password_entry = ctk.CTkEntry(form_card, height=38, placeholder_text="Enter password", show="*")
+        self.password_entry.grid(row=1, column=3, sticky="ew", padx=(0, 16), pady=(0, 8))
+
+        # Role label moved to second row to align with its option menu
+        ctk.CTkLabel(form_card, text="Role", text_color="#888888").grid(row=2, column=2, sticky="w", padx=(0, 8), pady=(0, 16))
+
+        ctk.CTkLabel(form_card, text="Confirm Password", text_color="#888888").grid(row=2, column=0, sticky="w", padx=(18, 8), pady=(0, 16))
+        self.confirm_password_entry = ctk.CTkEntry(form_card, height=38, placeholder_text="Confirm password", show="*")
+        self.confirm_password_entry.grid(row=2, column=1, sticky="ew", padx=(0, 16), pady=(0, 16))
+
+        self.role_option = ctk.CTkOptionMenu(
+            form_card,
+            values=["admin", "superadmin"],
+            fg_color="#1F1F1F",
+            button_color="#1E88E5",
+            button_hover_color="#1565C0",
+            width=160,
+        )
+        self.role_option.set("admin")
+        # place option menu beside the Role label in the same row
+        self.role_option.grid(row=2, column=3, sticky="w", padx=(0, 18), pady=(0, 16))
+
+        self.add_admin_button = ctk.CTkButton(
+            form_card,
+            text="Add Admin",
+            command=self._handle_add_admin,
+            fg_color="#1E88E5",
+            hover_color="#1565C0",
+            height=40,
+            font=ctk.CTkFont(size=14, weight="bold"),
+        )
+        self.add_admin_button.grid(row=3, column=0, columnspan=5, sticky="ew", padx=18, pady=(0, 18))
+
+    def _build_table(self, parent) -> None:
+        card = ctk.CTkFrame(parent, fg_color="#1A1A1A", corner_radius=14)
+        card.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 20))
+        card.grid_columnconfigure(0, weight=1)
+        card.grid_rowconfigure(1, weight=1)
+
+        self.count_label = ctk.CTkLabel(
+            card,
+            text="0 admins",
+            font=ctk.CTkFont(size=13),
+            text_color="#888888",
+        )
+        self.count_label.grid(row=0, column=0, sticky="w", padx=16, pady=(12, 8))
+
+        self.table_scroll = ctk.CTkScrollableFrame(card, fg_color="transparent")
+        self.table_scroll.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
+
+        headers = ["Username", "Role", "Created By", "Created Date", "Actions"]
+        weights = [2, 1, 2, 2, 1]
+        for col, weight in enumerate(weights):
+            self.table_scroll.grid_columnconfigure(col, weight=weight)
+        for col, header in enumerate(headers):
+            ctk.CTkLabel(
+                self.table_scroll,
+                text=header,
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color="#888888",
+                anchor="w",
+            ).grid(row=0, column=col, sticky="ew", padx=(10, 6), pady=(0, 6))
+
+        self.empty_label = ctk.CTkLabel(
+            self.table_scroll,
+            text="No admin accounts found.",
+            text_color="#888888",
+            font=ctk.CTkFont(size=13),
+        )
+
+    def _notify(self, message: str, kind: str) -> None:
+        if hasattr(self.app, "show_notification"):
+            self.app.show_notification(message, kind)
+        elif hasattr(self.app, "notifications") and hasattr(self.app.notifications, "show"):
+            self.app.notifications.show(message, kind=kind)
+
+    def _is_superadmin(self) -> bool:
+        return self.role == "superadmin"
+
+    def _clear_rows(self) -> None:
+        for widget in self._row_widgets:
+            widget.destroy()
+        self._row_widgets.clear()
+        self.empty_label.grid_forget()
+
+    def _set_controls_enabled(self, enabled: bool) -> None:
+        state = "normal" if enabled else "disabled"
+        self.username_entry.configure(state=state)
+        self.password_entry.configure(state=state)
+        self.confirm_password_entry.configure(state=state)
+        self.role_option.configure(state=state)
+        self.add_admin_button.configure(state=state)
+
+    def _confirm_delete(self, username: str) -> bool:
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Delete Admin")
+        dialog.geometry("430x220")
+        dialog.transient(self.winfo_toplevel())
+        dialog.grab_set()
+
+        result = {"ok": False}
+
+        def confirm() -> None:
+            result["ok"] = True
+            dialog.destroy()
+
+        card = ctk.CTkFrame(dialog, fg_color="#1E1E1E", corner_radius=0)
+        card.pack(fill="both", expand=True, padx=8, pady=8)
+        ctk.CTkLabel(card, text="Delete Admin", font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", padx=18, pady=(16, 8))
+        ctk.CTkLabel(
+            card,
+            text=f"Delete admin account '{username}'?",
+            justify="left",
+            wraplength=380,
+            text_color="#D0D0D0",
+        ).pack(anchor="w", padx=18, pady=(0, 16))
+        actions = ctk.CTkFrame(card, fg_color="transparent")
+        actions.pack(fill="x", padx=18, pady=(0, 16))
+        ctk.CTkButton(actions, text="Cancel", command=dialog.destroy, corner_radius=6).pack(side="left")
+        ctk.CTkButton(
+            actions,
+            text="Delete",
+            command=confirm,
+            fg_color="#C62828",
+            hover_color="#A51F1F",
+            corner_radius=6,
+        ).pack(side="right")
+
+        self.wait_window(dialog)
+        return bool(result["ok"])
+
+    def _handle_add_admin(self) -> None:
+        if not self._is_superadmin():
+            self._notify("Only superadmin can access admin management.", "error")
+            return
+
+        username = self.username_entry.get().strip()
+        password = self.password_entry.get()
+        confirm_password = self.confirm_password_entry.get()
+        role = self.role_option.get().strip().lower()
+
+        if not username or not password or not confirm_password or not role:
+            self._notify("All fields are required.", "error")
+            return
+
+        if password != confirm_password:
+            self._notify("Password and confirm password do not match.", "error")
+            return
+
+        try:
+            existing_admins = get_all_admins()
+        except Exception as error:
+            self._notify("Failed to load admins.", "error")
+            if hasattr(self.master_frame, "show_action_error"):
+                self.master_frame.show_action_error("Admin Management", "Unable to validate admin username.", error)
+            return
+
+        existing_usernames = {str(admin.get("username", "")).strip().lower() for admin in existing_admins}
+        if username.lower() in existing_usernames:
+            self._notify("Username already taken.", "error")
+            return
+
+        try:
+            add_admin(username, password, role, self.username or "system")
+            log_action(self.username or "system", "ADD_ADMIN", f"username={username}; role={role}")
+        except Exception as error:
+            self._notify("Failed to create admin.", "error")
+            if hasattr(self.master_frame, "show_action_error"):
+                self.master_frame.show_action_error("Admin Management", "Unable to create admin account.", error)
+            return
+
+        self.username_entry.delete(0, "end")
+        self.password_entry.delete(0, "end")
+        self.confirm_password_entry.delete(0, "end")
+        self.role_option.set("admin")
+        self.refresh()
+        self._notify("Admin created successfully", "success")
+
+    def _handle_delete_admin(self, target_username: str, target_role: str) -> None:
+        if not self._is_superadmin():
+            self._notify("Only superadmin can access admin management.", "error")
+            return
+
+        if target_role == "superadmin":
+            self._notify("Cannot delete superadmin accounts.", "error")
+            return
+
+        if not self._confirm_delete(target_username):
+            return
+
+        try:
+            delete_admin(target_username)
+            log_action(self.username or "system", "DELETE_ADMIN", f"username={target_username}")
+        except Exception as error:
+            self._notify("Failed to delete admin.", "error")
+            if hasattr(self.master_frame, "show_action_error"):
+                self.master_frame.show_action_error("Admin Management", "Unable to delete admin account.", error)
+            return
+
+        self.refresh()
+        self._notify("Admin deleted successfully", "success")
+
+    def _render_rows(self, rows: list[dict]) -> None:
+        self._clear_rows()
+        self.count_label.configure(text=f"{len(rows)} admins")
+
+        if not rows:
+            self.empty_label.grid(row=1, column=0, columnspan=5, sticky="w", padx=10, pady=14)
+            return
+
+        for idx, row in enumerate(rows, start=1):
+            bg = "#1A1A1A" if idx % 2 else "#202020"
+            username = str(row.get("username", "-"))
+            role = str(row.get("role", "-"))
+            values = [
+                username,
+                role,
+                str(row.get("created_by", "-")),
+                str(row.get("created_date", "-"))[:19],
+            ]
+
+            for col, value in enumerate(values):
+                label = ctk.CTkLabel(
+                    self.table_scroll,
+                    text=value,
+                    font=ctk.CTkFont(size=12),
+                    text_color="white",
+                    fg_color=bg,
+                    anchor="w",
+                    corner_radius=4,
+                )
+                label.grid(row=idx, column=col, sticky="ew", padx=(10, 6), pady=2)
+                self._row_widgets.append(label)
+
+            can_delete = self._is_superadmin() and role != "superadmin"
+            delete_button = ctk.CTkButton(
+                self.table_scroll,
+                text="Delete",
+                command=lambda target=username, target_role=role: self._handle_delete_admin(target, target_role),
+                fg_color="#C62828",
+                hover_color="#A51F1F",
+                width=88,
+                height=30,
+                corner_radius=6,
+                state="normal" if can_delete else "disabled",
+            )
+            delete_button.grid(row=idx, column=4, sticky="e", padx=(6, 10), pady=2)
+            self._row_widgets.append(delete_button)
+
+    def refresh(self) -> None:
+        try:
+            rows = get_all_admins()
+        except Exception as error:
+            self._notify("Failed to load admins.", "error")
+            if hasattr(self.master_frame, "show_action_error"):
+                self.master_frame.show_action_error("Admin Management", "Unable to load admin accounts.", error)
+            return
+
+        self._set_controls_enabled(self._is_superadmin())
+        self._render_rows(rows)
+
+    def update_user(self, username: str, role: str) -> None:
+        self.username = username
+        self.role = role
+        self.refresh()
