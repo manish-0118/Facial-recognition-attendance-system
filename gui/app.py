@@ -15,10 +15,8 @@ from .audit_page import AuditPage
 from .export_page import ExportPage
 from .login_page import LoginPage
 from .dashboard_page import DashboardPage
-from .records_page import RecordsPage
 from .register_page import RegisterPage
-from .student_page import StudentPage
-from .class_page import ClassPage
+from .class_hub_page import ClassHubPage
 from gui.settings_page import SettingsPage
 
 
@@ -31,9 +29,7 @@ TIMEOUT_CHECK_MS = 30_000
 BASE_NAV_ITEMS = [
     "Dashboard",
     "Classes",
-    "Students",
     "Take Attendance",
-    "Records",
     "Export",
     "Archive",
     "Register Student",
@@ -292,39 +288,25 @@ class App(ctk.CTk):
 
         page_classes = {
             "Dashboard": DashboardPage,
-            "Classes": ClassPage,
-            "Students": StudentPage,  # Fixed to map to StudentPage
+            "Classes": ClassHubPage,
             "Register Student": RegisterPage,  # Added Register Student navigation item
             "Take Attendance": AttendancePage,
-            "Records": RecordsPage,
             "Export": ExportPage,
             "Archive": ArchivePage,
             "Settings": SettingsPage,
             "Admin Management": AdminPage,
             "Audit Log": AuditPage,
         }
-
         page_class = page_classes.get(page_name)
         if page_class:
             try:
-                pages_with_navigate = {"Students"}
-
-                if page_name in pages_with_navigate:
-                    self._current_page = page_class(
-                    self.content_frame,
-                    username=self.logged_in_username,
-                    role=self.logged_in_role,
-                    on_navigate=self.show_page,
-                )
-                
-                else:
-                    self._current_page = page_class(
+                # None of the current pages require the on_navigate callback
+                self._current_page = page_class(
                     self.content_frame,
                     username=self.logged_in_username,
                     role=self.logged_in_role,
                 )
-                
-                self._current_page.grid(row=0, column=0, sticky="nsew")  # Ensure the new page is displayed properly
+                self._current_page.grid(row=0, column=0, sticky="nsew")
                 try:
                     self._update_active_nav(page_name)
                 except Exception:
@@ -380,6 +362,27 @@ class App(ctk.CTk):
         else:
             self._schedule_timeout_check()
 
+
+def show_notification(self, message: str, kind: str = "success") -> None:
+    if self._toast:
+        try:
+            self._toast.destroy()
+        except Exception:
+            pass
+    color = "#2E7D32" if kind == "success" else "#C62828"
+    toast = ctk.CTkFrame(self, fg_color=color, corner_radius=0)
+    toast.place(relx=1.0, rely=0.0, anchor="ne", x=-10, y=10)
+    ctk.CTkLabel(toast, text=message, text_color="white", padx=12, pady=8).pack()
+    self._toast = toast
+    self.after(3000, self._slide_out_toast)
+
+def _slide_out_toast(self) -> None:
+    if self._toast:
+        try:
+            self._toast.destroy()
+        except Exception:
+            pass
+        self._toast = None
 
 if __name__ == "__main__":
     app = App()
