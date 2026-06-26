@@ -7,6 +7,8 @@ from pathlib import Path
 import customtkinter as ctk
 from core.database import get_all_classes, get_today_attendance
 from datetime import date
+from gui import theme
+from gui.widgets import ThemedDropdown
 
 
 class AttendancePage(ctk.CTkFrame):
@@ -27,10 +29,10 @@ class AttendancePage(ctk.CTkFrame):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
-        header = ctk.CTkFrame(self, fg_color="#1A1A1A", corner_radius=0, height=60)
+        header = ctk.CTkFrame(self, fg_color=theme.BG_SURFACE, corner_radius=0, height=60)
         header.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
         ctk.CTkLabel(
-            header, text="Take Attendance", font=ctk.CTkFont(size=20, weight="bold"), text_color="white"
+            header, text="Take Attendance", font=ctk.CTkFont(size=20, weight="bold"), text_color=theme.TEXT_PRIMARY
         ).pack(side="left", padx=20, pady=15)
 
         body = ctk.CTkFrame(self, fg_color="transparent")
@@ -38,9 +40,18 @@ class AttendancePage(ctk.CTkFrame):
         body.grid_columnconfigure(0, weight=1)
         body.grid_rowconfigure(0, weight=1)
 
-        # Main left-aligned card containing all attendance controls
-        info_card = ctk.CTkFrame(body, fg_color="#1A1A1A", corner_radius=12)
-        info_card.grid(row=0, column=0, sticky="nw", padx=20, pady=(20, 12))
+        # Centered main card containing all attendance controls
+        wrapper = ctk.CTkFrame(body, fg_color="transparent")
+        wrapper.grid(row=0, column=0, sticky="nsew")
+        # three-column wrapper so center column stays centered
+        wrapper.grid_columnconfigure(0, weight=1)
+        wrapper.grid_columnconfigure(1, weight=0)
+        wrapper.grid_columnconfigure(2, weight=1)
+
+        info_card = ctk.CTkFrame(wrapper, fg_color=theme.BG_SURFACE, corner_radius=12, width=560, height=420)
+        # place in center column; give breathing room and increased top/bottom padding
+        info_card.grid(row=0, column=1, sticky="n", padx=0, pady=(30, 20))
+        info_card.grid_propagate(False)
         info_card.grid_columnconfigure(0, weight=1)
 
         # Class selector (full width of card)
@@ -48,28 +59,23 @@ class AttendancePage(ctk.CTkFrame):
             info_card,
             text="Class",
             font=ctk.CTkFont(size=14, weight="bold"),
-            text_color="white",
+            text_color=theme.TEXT_PRIMARY,
         ).grid(row=0, column=0, sticky="w", padx=16, pady=(16, 6))
 
-        self.class_selector = ctk.CTkOptionMenu(
+        self.class_selector = ThemedDropdown(
             info_card,
             values=["Select Class"],
             command=self._on_class_selected,
-            width=600,
-            fg_color="#1F1F1F",
-            button_color="#1E88E5",
-            button_hover_color="#1565C0",
         )
         self.class_selector.grid(row=1, column=0, sticky="ew", padx=16)
-        self.class_selector.set("Select Class")
 
         # Model status indicator
         self.model_status_var = ctk.StringVar(value="Model Not Trained")
         status_frame = ctk.CTkFrame(info_card, fg_color=info_card.cget("fg_color"))
         status_frame.grid(row=2, column=0, sticky="w", padx=16, pady=(12, 6))
-        self._model_dot = ctk.CTkLabel(status_frame, text="●", font=ctk.CTkFont(size=14), text_color="#FF5252")
+        self._model_dot = ctk.CTkLabel(status_frame, text="●", font=ctk.CTkFont(size=14), text_color=theme.DANGER)
         self._model_dot.pack(side="left", padx=(0, 8))
-        self._model_status_label = ctk.CTkLabel(status_frame, textvariable=self.model_status_var, text_color="white")
+        self._model_status_label = ctk.CTkLabel(status_frame, textvariable=self.model_status_var, text_color=theme.TEXT_PRIMARY)
         self._model_status_label.pack(side="left")
 
         # Buttons frame (left aligned)
@@ -80,8 +86,8 @@ class AttendancePage(ctk.CTkFrame):
             btn_frame,
             text="Start Attendance",
             command=self.start_attendance,
-            fg_color="#1E88E5",
-            hover_color="#1565C0",
+            fg_color=theme.ACCENT,
+            hover_color=theme.ACCENT_HOVER,
             width=160,
             height=40,
         )
@@ -91,8 +97,8 @@ class AttendancePage(ctk.CTkFrame):
             btn_frame,
             text="Stop Attendance",
             command=self.stop_attendance,
-            fg_color="#8f2d3b",
-            hover_color="#b33d4d",
+            fg_color=theme.BTN_DANGER,
+            hover_color=theme.BTN_DANGER_HVR,
             width=160,
             height=40,
             state="disabled",
@@ -101,14 +107,14 @@ class AttendancePage(ctk.CTkFrame):
 
         # Present counter
         self.present_count_var = ctk.StringVar(value="Present Today: 0 students")
-        self.present_label = ctk.CTkLabel(info_card, textvariable=self.present_count_var, text_color="white")
+        self.present_label = ctk.CTkLabel(info_card, textvariable=self.present_count_var, text_color=theme.TEXT_PRIMARY)
         self.present_label.grid(row=4, column=0, sticky="w", padx=16, pady=(10, 12))
 
         # Process/status area (keeps existing process status messages)
         self._process_status_label = ctk.CTkLabel(
             info_card,
             textvariable=self.status_var,
-            text_color="white",
+            text_color=theme.TEXT_PRIMARY,
             justify="left",
             wraplength=700,
         )
@@ -260,13 +266,13 @@ class AttendancePage(ctk.CTkFrame):
         if trained:
             self.model_status_var.set("Model Ready")
             try:
-                self._model_dot.configure(text_color="#4CAF50")
+                self._model_dot.configure(text_color=theme.SUCCESS)
             except Exception:
                 pass
         else:
             self.model_status_var.set("Model Not Trained")
             try:
-                self._model_dot.configure(text_color="#FF5252")
+                self._model_dot.configure(text_color=theme.DANGER)
             except Exception:
                 pass
 

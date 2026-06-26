@@ -5,6 +5,7 @@ import io
 import traceback
 
 import customtkinter as ctk # pyright: ignore[reportMissingImports]
+from gui import theme
 from tkinter import filedialog
 
 from core.database import (
@@ -72,7 +73,7 @@ class RecordsPage(ctk.CTkFrame):
     def _build_level1(self) -> None:
         root = self.level1_frame
         # centered card container — full width with equal margins
-        card = ctk.CTkFrame(root, fg_color="#1E1E1E", corner_radius=6)
+        card = ctk.CTkFrame(root, fg_color=theme.BG_SURFACE, corner_radius=6)
         card.grid(row=0, column=0, sticky="nsew", padx=60, pady=20)
         card.grid_columnconfigure(0, weight=3)
         card.grid_columnconfigure(1, weight=2)
@@ -82,17 +83,34 @@ class RecordsPage(ctk.CTkFrame):
         left.grid(row=0, column=0, sticky="nsew", padx=(18, 12), pady=18)
         left.grid_columnconfigure(0, weight=1)
 
-        title = ctk.CTkLabel(left, text="Class View", font=ctk.CTkFont(size=18, weight="bold"), text_color="white")
+        title = ctk.CTkLabel(left, text="Class View", font=ctk.CTkFont(size=18, weight="bold"), text_color=theme.TEXT_PRIMARY)
         title.grid(row=0, column=0, sticky="w", pady=(0, 12))
 
         ctrl = ctk.CTkFrame(left, fg_color="transparent")
         ctrl.grid(row=1, column=0, sticky="ew", pady=(0, 8))
         ctrl.grid_columnconfigure(0, weight=1)
-        ctrl.grid_columnconfigure(1, weight=2)
+        ctrl.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(ctrl, text="Class:", text_color="white").grid(row=0, column=0, sticky="w")
-        self.class_dropdown = ctk.CTkOptionMenu(ctrl, values=["Select Class"], width=320)
-        self.class_dropdown.grid(row=0, column=1, sticky="w", padx=(8, 8))
+        ctk.CTkLabel(ctrl, text="Class:", text_color=theme.TEXT_PRIMARY).grid(row=0, column=0, sticky="w")
+        _dd_frame = ctk.CTkFrame(ctrl, fg_color="transparent")
+        _dd_frame.grid(row=0, column=1, sticky="ew", padx=(8, 8))
+        _dd_frame.grid_columnconfigure(0, weight=1)
+        self.class_dropdown = ctk.CTkComboBox(
+            _dd_frame,
+            values=["Select Class"],
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            border_color=theme.BG_SURFACE_ALT,
+            button_color=theme.ACCENT,
+            button_hover_color=theme.ACCENT_HOVER,
+            text_color=theme.TEXT_PRIMARY,
+            dropdown_fg_color=theme.BG_SURFACE_ALT,
+            dropdown_text_color=theme.TEXT_PRIMARY,
+            dropdown_hover_color=theme.BG_HOVER,
+            corner_radius=8,
+            state="readonly",
+        )
+        self.class_dropdown.grid(row=0, column=0, sticky="ew")
         self.class_dropdown.set("Select Class")
         self.class_dropdown.configure(command=lambda _: self._on_class_change())
 
@@ -105,20 +123,20 @@ class RecordsPage(ctk.CTkFrame):
 
         self.prev_btn = ctk.CTkButton(nav, text="◀", width=40, command=self._prev_day)
         self.prev_btn.grid(row=0, column=0)
-        self.date_label = ctk.CTkLabel(nav, text=self._format_date(self._current_date), text_color="white")
+        self.date_label = ctk.CTkLabel(nav, text=self._format_date(self._current_date), text_color=theme.TEXT_PRIMARY)
         self.date_label.grid(row=0, column=1)
         self.next_btn = ctk.CTkButton(nav, text="▶", width=40, command=self._next_day)
         self.next_btn.grid(row=0, column=2)
 
         # table area
-        table_card = ctk.CTkFrame(left, fg_color="#1E1E1E", corner_radius=0)
+        table_card = ctk.CTkFrame(left, fg_color=theme.BG_SURFACE, corner_radius=0)
         table_card.grid(row=3, column=0, sticky="nsew", pady=(6, 0))
         table_card.grid_columnconfigure(0, weight=1)
         # header row
-        header_row = ctk.CTkFrame(table_card, fg_color="#1E1E1E")
+        header_row = ctk.CTkFrame(table_card, fg_color=theme.BG_SURFACE)
         header_row.grid(row=0, column=0, sticky="ew", padx=4, pady=(6, 4))
         for i, h in enumerate(["Student ID", "Name", "Status"]):
-            ctk.CTkLabel(header_row, text=h, text_color="#888888", font=ctk.CTkFont(size=12, weight="bold")).grid(row=0, column=i, sticky="w", padx=8)
+            ctk.CTkLabel(header_row, text=h, text_color=theme.TEXT_SECONDARY, font=ctk.CTkFont(size=12, weight="bold")).grid(row=0, column=i, sticky="w", padx=8)
 
         self.table_scroll = ctk.CTkScrollableFrame(table_card, fg_color="transparent")
         self.table_scroll.grid(row=1, column=0, sticky="nsew", padx=4, pady=(0, 8))
@@ -127,7 +145,7 @@ class RecordsPage(ctk.CTkFrame):
         right = ctk.CTkFrame(card, fg_color="transparent")
         right.grid(row=0, column=1, sticky="nsew", padx=(12, 18), pady=18)
         right.grid_columnconfigure(0, weight=1)
-        self._chart_frame = ctk.CTkFrame(right, fg_color="#1E1E1E")
+        self._chart_frame = ctk.CTkFrame(right, fg_color=theme.BG_SURFACE)
         self._chart_frame.grid(row=0, column=0, sticky="nsew")
         self._init_overview_chart()
 
@@ -141,7 +159,7 @@ class RecordsPage(ctk.CTkFrame):
         options = ["Select Class"]
         self._class_map.clear()
         for c in self._classes:
-            label = f"{c.get('name','')} {c.get('section','')} (ID: {c.get('id')})"
+            label = f"{c.get('name','')} {c.get('section','')}".strip()
             options.append(label)
             self._class_map[label] = c
 
@@ -204,11 +222,11 @@ class RecordsPage(ctk.CTkFrame):
             if status == "present":
                 present_count += 1
 
-            fg = _STATUS_COLORS.get(status, "white")
-            bg = "#1E1E1E" if idx % 2 == 0 else "#252525"
+            fg = _STATUS_COLORS.get(status, theme.TEXT_PRIMARY)
+            bg = theme.BG_SURFACE if idx % 2 == 0 else theme.BG_SURFACE_ALT
 
-            lbl_id = ctk.CTkLabel(self.table_scroll, text=sid, text_color="white", fg_color=bg, corner_radius=4)
-            lbl_name = ctk.CTkLabel(self.table_scroll, text=name, text_color="white", fg_color=bg, corner_radius=4)
+            lbl_id = ctk.CTkLabel(self.table_scroll, text=sid, text_color=theme.TEXT_PRIMARY, fg_color=bg, corner_radius=4)
+            lbl_name = ctk.CTkLabel(self.table_scroll, text=name, text_color=theme.TEXT_PRIMARY, fg_color=bg, corner_radius=4)
             lbl_status = ctk.CTkLabel(self.table_scroll, text=status.capitalize() if status else "-", text_color=fg, fg_color=bg, corner_radius=4)
 
             row = idx + 1
@@ -219,7 +237,7 @@ class RecordsPage(ctk.CTkFrame):
             # clickable name: underline on hover + pointer
             def on_enter(ev, lbl=lbl_name):
                 try:
-                    lbl.configure(text_color="#1E88E5")
+                    lbl.configure(text_color=theme.ACCENT)
                     lbl.configure(font=ctk.CTkFont(size=12, underline=True))
                     lbl.configure(cursor="hand2")
                 except Exception:
@@ -227,7 +245,7 @@ class RecordsPage(ctk.CTkFrame):
 
             def on_leave(ev, lbl=lbl_name):
                 try:
-                    lbl.configure(text_color="white")
+                    lbl.configure(text_color=theme.TEXT_PRIMARY)
                     lbl.configure(font=ctk.CTkFont(size=12, underline=False))
                     lbl.configure(cursor="")
                 except Exception:
@@ -321,7 +339,7 @@ class RecordsPage(ctk.CTkFrame):
         # top back
         top = ctk.CTkFrame(self.level2_frame, fg_color="transparent")
         top.grid(row=0, column=0, sticky="ew", padx=12, pady=8)
-        back_btn = ctk.CTkButton(top, text="◀ Back", command=self._close_student_view, fg_color="#2A2A2A")
+        back_btn = ctk.CTkButton(top, text="◀ Back", command=self._close_student_view, fg_color=theme.BG_SURFACE_ALT)
         back_btn.pack(side="left")
 
         # fetch profile
@@ -332,7 +350,7 @@ class RecordsPage(ctk.CTkFrame):
             profile = {}
 
         # centered card for level2
-        card = ctk.CTkFrame(self.level2_frame, fg_color="#1E1E1E", corner_radius=6)
+        card = ctk.CTkFrame(self.level2_frame, fg_color=theme.BG_SURFACE, corner_radius=6)
         card.grid(row=1, column=0, sticky="nsew", padx=40, pady=12)
         card.grid_columnconfigure(0, weight=3)
         card.grid_columnconfigure(1, weight=2)
@@ -368,7 +386,7 @@ class RecordsPage(ctk.CTkFrame):
         self._present_label = ctk.CTkLabel(summary, text="Present: 0", text_color=_STATUS_COLORS["present"], font=ctk.CTkFont(size=14, weight="bold"))
         self._late_label = ctk.CTkLabel(summary, text="Late: 0", text_color=_STATUS_COLORS["late"], font=ctk.CTkFont(size=14, weight="bold"))
         self._absent_label = ctk.CTkLabel(summary, text="Absent: 0", text_color=_STATUS_COLORS["absent"], font=ctk.CTkFont(size=14, weight="bold"))
-        self._pct_label = ctk.CTkLabel(summary, text="Attendance: 0%", text_color="#FFFFFF", font=ctk.CTkFont(size=14, weight="bold"))
+        self._pct_label = ctk.CTkLabel(summary, text="Attendance: 0%", text_color=theme.TEXT_PRIMARY, font=ctk.CTkFont(size=14, weight="bold"))
         self._present_label.grid(row=0, column=0, padx=(0, 12))
         self._late_label.grid(row=0, column=1, padx=(0, 12))
         self._absent_label.grid(row=0, column=2, padx=(0, 12))
@@ -380,7 +398,7 @@ class RecordsPage(ctk.CTkFrame):
         right.grid_columnconfigure(0, weight=1)
 
         # profile card
-        profile_card = ctk.CTkFrame(right, fg_color="#1A1A1A", corner_radius=6)
+        profile_card = ctk.CTkFrame(right, fg_color=theme.BG_SURFACE, corner_radius=6)
         profile_card.grid(row=0, column=0, sticky="ew", pady=(0, 12), padx=8)
         profile_card.grid_columnconfigure(0, weight=1)
 
@@ -389,9 +407,9 @@ class RecordsPage(ctk.CTkFrame):
         details.grid(row=0, column=0, sticky="ew", padx=8, pady=8)
         details.grid_columnconfigure(0, weight=1)
         name = self._format_profile_name(profile)
-        ctk.CTkLabel(details, text=name, font=ctk.CTkFont(size=16, weight="bold"), text_color="white").grid(row=0, column=0, sticky="w")
-        ctk.CTkLabel(details, text=f"Student ID: {student_id}", text_color="#D0D0D0").grid(row=1, column=0, sticky="w")
-        ctk.CTkLabel(details, text=f"Class: {self._format_class_display(profile.get('class_id'))}", text_color="#D0D0D0").grid(row=2, column=0, sticky="w")
+        ctk.CTkLabel(details, text=name, font=ctk.CTkFont(size=16, weight="bold"), text_color=theme.TEXT_PRIMARY).grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(details, text=f"Student ID: {student_id}", text_color=theme.TEXT_SECONDARY).grid(row=1, column=0, sticky="w")
+        ctk.CTkLabel(details, text=f"Class: {self._format_class_display(profile.get('class_id'))}", text_color=theme.TEXT_SECONDARY).grid(row=2, column=0, sticky="w")
 
         photo_frame = ctk.CTkFrame(profile_card, fg_color="transparent")
         photo_frame.grid(row=0, column=1, sticky="e", padx=8, pady=8)
@@ -409,12 +427,12 @@ class RecordsPage(ctk.CTkFrame):
                 lbl.image = tkimg
                 lbl.grid(row=0, column=0)
             except Exception:
-                ctk.CTkLabel(photo_frame, text="", width=100, height=6, fg_color="#444444").grid(row=0, column=0)
+                ctk.CTkLabel(photo_frame, text="", width=100, height=6, fg_color=theme.BORDER).grid(row=0, column=0)  # TODO: verify token for #444444
         else:
-            ctk.CTkLabel(photo_frame, text="", width=100, height=6, fg_color="#444444").grid(row=0, column=0)
+            ctk.CTkLabel(photo_frame, text="", width=100, height=6, fg_color=theme.BORDER).grid(row=0, column=0)  # TODO: verify token for #444444
 
         # student chart
-        self._student_chart_frame = ctk.CTkFrame(right, fg_color="#1E1E1E")
+        self._student_chart_frame = ctk.CTkFrame(right, fg_color=theme.BG_SURFACE)
         self._student_chart_frame.grid(row=1, column=0, sticky="nsew", padx=8)
 
         # store references
@@ -443,10 +461,28 @@ class RecordsPage(ctk.CTkFrame):
         win.title("Custom Filter")
         win.geometry("360x120")
         ctk.CTkLabel(win, text="From (YYYY-MM-DD)").pack(padx=8, pady=(8, 2))
-        from_entry = ctk.CTkEntry(win, placeholder_text="YYYY-MM-DD")
+        from_entry = ctk.CTkEntry(
+            win,
+            placeholder_text="YYYY-MM-DD",
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=6,
+            height=42,
+        )
         from_entry.pack(padx=8, pady=2)
         ctk.CTkLabel(win, text="To (YYYY-MM-DD)").pack(padx=8, pady=(6, 2))
-        to_entry = ctk.CTkEntry(win, placeholder_text="YYYY-MM-DD")
+        to_entry = ctk.CTkEntry(
+            win,
+            placeholder_text="YYYY-MM-DD",
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=6,
+            height=42,
+        )
         to_entry.pack(padx=8, pady=2)
 
         def apply_custom():
@@ -471,7 +507,7 @@ class RecordsPage(ctk.CTkFrame):
     def _apply_period(self, key: str, student_id: str | None = None) -> None:
         # highlight button styles
         for k, btn in self._filter_buttons.items():
-            btn.configure(fg_color="#1E88E5" if k == key else "#2A2A2A")
+            btn.configure(fg_color=theme.ACCENT if k == key else theme.BG_SURFACE_ALT)
         self._filter_period = key
         if student_id:
             self._last_student_id = student_id
@@ -517,7 +553,7 @@ class RecordsPage(ctk.CTkFrame):
 
         headers = ["Date", "Time", "Status"]
         for col, h in enumerate(headers):
-            ctk.CTkLabel(self._student_scroll, text=h, text_color="#888888", font=ctk.CTkFont(size=12, weight="bold")).grid(row=0, column=col, sticky="w", padx=8, pady=6)
+            ctk.CTkLabel(self._student_scroll, text=h, text_color=theme.TEXT_SECONDARY, font=ctk.CTkFont(size=12, weight="bold")).grid(row=0, column=col, sticky="w", padx=8, pady=6)
 
         present = late = absent = 0
         dates = []
@@ -533,10 +569,10 @@ class RecordsPage(ctk.CTkFrame):
             else:
                 absent += 1
 
-            fg = _STATUS_COLORS.get(st, "white")
-            bg = "#1E1E1E" if idx % 2 == 1 else "#252525"
-            ctk.CTkLabel(self._student_scroll, text=str(d), text_color="white", fg_color=bg, corner_radius=4).grid(row=idx, column=0, sticky="w", padx=8, pady=2, ipadx=6, ipady=6)
-            ctk.CTkLabel(self._student_scroll, text=t, text_color="white", fg_color=bg, corner_radius=4).grid(row=idx, column=1, sticky="w", padx=8, pady=2, ipadx=6, ipady=6)
+            fg = _STATUS_COLORS.get(st, theme.TEXT_PRIMARY)
+            bg = theme.BG_SURFACE if idx % 2 == 1 else theme.BG_SURFACE_ALT
+            ctk.CTkLabel(self._student_scroll, text=str(d), text_color=theme.TEXT_PRIMARY, fg_color=bg, corner_radius=4).grid(row=idx, column=0, sticky="w", padx=8, pady=2, ipadx=6, ipady=6)
+            ctk.CTkLabel(self._student_scroll, text=t, text_color=theme.TEXT_PRIMARY, fg_color=bg, corner_radius=4).grid(row=idx, column=1, sticky="w", padx=8, pady=2, ipadx=6, ipady=6)
             ctk.CTkLabel(self._student_scroll, text=st.capitalize() if st else "-", text_color=fg, fg_color=bg, corner_radius=4).grid(row=idx, column=2, sticky="w", padx=8, pady=2, ipadx=6, ipady=6)
 
             # for chart
@@ -551,7 +587,7 @@ class RecordsPage(ctk.CTkFrame):
 
         total = present + late + absent
         pct = int((present / total) * 100) if total > 0 else 0
-        pct_color = "#57C46D" if pct > 75 else ("#F4C542" if pct >= 60 else "#FF6B6B")
+        pct_color = (theme.BTN_SUCCESS if pct > 75 else (theme.WARNING if pct >= 60 else theme.DANGER))  # TODO: verify token mapping for #57C46D
         # update colored summary labels
         try:
             self._present_label.configure(text=f"Present: {present}")

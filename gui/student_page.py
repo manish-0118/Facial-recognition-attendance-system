@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import customtkinter as ctk # pyright: ignore[reportMissingImports]
+from gui import theme
 
 from tkinter import filedialog
 import io
@@ -55,39 +56,49 @@ class StudentPage(ctk.CTkFrame):
             top,
             text="Students",
             font=ctk.CTkFont(size=28, weight="bold"),
-            text_color="white",
+            text_color=theme.TEXT_PRIMARY,
         ).grid(row=0, column=0, sticky="w")
 
         self.class_count_label = ctk.CTkLabel(
             top,
             text="0 / 0 students",
             font=ctk.CTkFont(size=14),
-            text_color="white",
+            text_color=theme.TEXT_SECONDARY,
         )
         self.class_count_label.grid(row=1, column=0, sticky="w", pady=(4, 0))
 
         controls = ctk.CTkFrame(top, fg_color="transparent")
         controls.grid(row=0, column=1, rowspan=2, sticky="e")
+        controls.grid_columnconfigure(0, weight=1)
 
-        self.class_selector = ctk.CTkOptionMenu(
-            controls,
+        _dd_frame = ctk.CTkFrame(controls, fg_color="transparent")
+        _dd_frame.grid(row=0, column=0, sticky="ew", padx=(0, 10))
+        _dd_frame.grid_columnconfigure(0, weight=1)
+        self.class_selector = ctk.CTkComboBox(
+            _dd_frame,
             values=["Select Class"],
             command=self._on_class_selected,
-            width=230,
-            height=34,
-            fg_color="#1A1A1A",
-            button_color="#1E88E5",
-            button_hover_color="#1565C0",
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            border_color=theme.BG_SURFACE_ALT,
+            button_color=theme.ACCENT,
+            button_hover_color=theme.ACCENT_HOVER,
+            text_color=theme.TEXT_PRIMARY,
+            dropdown_fg_color=theme.BG_SURFACE_ALT,
+            dropdown_text_color=theme.TEXT_PRIMARY,
+            dropdown_hover_color=theme.BG_HOVER,
+            corner_radius=8,
+            state="readonly",
         )
-        self.class_selector.grid(row=0, column=0, padx=(0, 10))
+        self.class_selector.grid(row=0, column=0, sticky="ew")
         self.class_selector.set("Select Class")
 
         ctk.CTkButton(
             controls,
             text="Register New Student",
             command=self._handle_navigate_register,
-            fg_color="#1E88E5",
-            hover_color="#1565C0",
+            fg_color=theme.ACCENT,
+            hover_color=theme.ACCENT_HOVER,
             height=34,
             corner_radius=6,
         ).grid(row=0, column=1, padx=(0, 10))
@@ -96,15 +107,15 @@ class StudentPage(ctk.CTkFrame):
             controls,
             text="Refresh",
             command=self.refresh,
-            fg_color="#1A1A1A",
-            hover_color="#353535",
+            fg_color=theme.BTN_SECONDARY,
+            hover_color=theme.BTN_SECONDARY_HVR,
             height=34,
             width=88,
             corner_radius=6,
         ).grid(row=0, column=2)
 
     def _build_table_card(self) -> None:
-        card = ctk.CTkFrame(self, fg_color="#1A1A1A", corner_radius=10)
+        card = ctk.CTkFrame(self, fg_color=theme.BG_SURFACE, corner_radius=10)
         card.grid(row=2, column=0, sticky="nsew", padx=24, pady=(0, 18))
         card.grid_columnconfigure(0, weight=1)
         card.grid_rowconfigure(1, weight=1)
@@ -113,7 +124,7 @@ class StudentPage(ctk.CTkFrame):
             card,
             text="Students In Selected Class",
             font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="white",
+            text_color=theme.TEXT_PRIMARY,
         ).grid(row=0, column=0, sticky="w", padx=16, pady=(12, 8))
 
         self.table_scroll = ctk.CTkScrollableFrame(card, fg_color="transparent")
@@ -128,7 +139,7 @@ class StudentPage(ctk.CTkFrame):
             ctk.CTkLabel(
                 self.table_scroll,
                 text=header,
-                text_color="white",
+                text_color=theme.TEXT_SECONDARY,
                 font=ctk.CTkFont(size=12, weight="bold"),
                 anchor="w",
             ).grid(row=0, column=col, sticky="ew", padx=(10, 6), pady=(0, 6))
@@ -136,7 +147,7 @@ class StudentPage(ctk.CTkFrame):
         self.empty_label = ctk.CTkLabel(
             self.table_scroll,
             text="Please select a class to view students",
-            text_color="white",
+            text_color=theme.TEXT_SECONDARY,
             font=ctk.CTkFont(size=13),
         )
 
@@ -147,10 +158,9 @@ class StudentPage(ctk.CTkFrame):
             pass
 
     def _format_class_label(self, class_row: dict) -> str:
-        name = str(class_row.get("name", "")).strip()
+        name    = str(class_row.get("name",    "")).strip()
         section = str(class_row.get("section", "")).strip()
-        class_id = class_row.get("id")
-        return f"{name} - {section} (ID: {class_id})"
+        return f"{name} - {section}"
 
     def _load_classes(self) -> None:
         self._classes = get_all_classes()
@@ -217,7 +227,7 @@ class StudentPage(ctk.CTkFrame):
             return
 
         for idx, student in enumerate(students, start=1):
-            bg = "#1A1A1A" if idx % 2 else "#202020"
+            bg = theme.BG_ROW_ODD if idx % 2 else theme.BG_ROW_EVEN
             row_widgets: list[ctk.CTkBaseClass] = []
 
             values = [
@@ -231,7 +241,7 @@ class StudentPage(ctk.CTkFrame):
                 label = ctk.CTkLabel(
                     self.table_scroll,
                     text=value,
-                    text_color="white",
+                    text_color=theme.TEXT_PRIMARY,
                     fg_color=bg,
                     anchor="w",
                     font=ctk.CTkFont(size=12),
@@ -244,8 +254,8 @@ class StudentPage(ctk.CTkFrame):
             delete_btn = ctk.CTkButton(
                 self.table_scroll,
                 text="Delete",
-                fg_color="#C62828",
-                hover_color="#A51F1F",
+                fg_color=theme.BTN_DANGER,
+                hover_color=theme.BTN_DANGER_HVR,
                 width=84,
                 height=28,
                 corner_radius=6,
@@ -260,8 +270,8 @@ class StudentPage(ctk.CTkFrame):
             update_btn = ctk.CTkButton(
                 self.table_scroll,
                 text="Update Photo",
-                fg_color="#1E88E5",
-                hover_color="#1565C0",
+                fg_color=theme.ACCENT,
+                hover_color=theme.ACCENT_HOVER,
                 width=110,
                 height=28,
                 corner_radius=6,
@@ -302,7 +312,7 @@ class StudentPage(ctk.CTkFrame):
             result["ok"] = True
             dialog.destroy()
 
-        card = ctk.CTkFrame(dialog, fg_color="#1E1E1E", corner_radius=0)
+        card = ctk.CTkFrame(dialog, fg_color=theme.BG_SURFACE_ALT, corner_radius=0)
         card.pack(fill="both", expand=True, padx=8, pady=8)
 
         ctk.CTkLabel(
@@ -316,7 +326,7 @@ class StudentPage(ctk.CTkFrame):
             text=f"Soft delete {student_name} ({student_id})?",
             justify="left",
             wraplength=390,
-            text_color="#D0D0D0",
+            text_color=theme.TEXT_SECONDARY,
         ).pack(anchor="w", padx=16, pady=(0, 14))
 
         actions = ctk.CTkFrame(card, fg_color="transparent")
@@ -327,8 +337,8 @@ class StudentPage(ctk.CTkFrame):
             actions,
             text="Delete",
             command=do_delete,
-            fg_color="#C62828",
-            hover_color="#A51F1F",
+            fg_color=theme.BTN_DANGER,
+            hover_color=theme.BTN_DANGER_HVR,
             corner_radius=6,
         ).pack(side="right")
 
@@ -342,13 +352,12 @@ class StudentPage(ctk.CTkFrame):
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
 
-        frame = ctk.CTkFrame(dialog, fg_color="#1A1A1A")
+        frame = ctk.CTkFrame(dialog, fg_color=theme.BG_SURFACE)
         frame.pack(fill="both", expand=True, padx=12, pady=12)
-
-        preview_frame = ctk.CTkFrame(frame, fg_color="#121212", width=120, height=120)
+        preview_frame = ctk.CTkFrame(frame, fg_color=theme.BG_SURFACE, width=120, height=120)
         preview_frame.grid(row=0, column=1, rowspan=3, padx=(8,0))
         preview_frame.grid_propagate(False)
-        preview_label = ctk.CTkLabel(preview_frame, text="No photo selected", text_color="#888888")
+        preview_label = ctk.CTkLabel(preview_frame, text="No photo selected", text_color=theme.TEXT_SECONDARY)
         preview_label.place(relx=0.5, rely=0.5, anchor="center")
 
         def _set_preview_from_bytes(b: bytes | None) -> None:
@@ -414,7 +423,7 @@ class StudentPage(ctk.CTkFrame):
                     pass
                 cam_dlg.destroy()
 
-            btn = ctk.CTkButton(cam_dlg, text="Capture", command=_capture, fg_color="#1E88E5")
+            btn = ctk.CTkButton(cam_dlg, text="Capture", command=_capture, fg_color=theme.ACCENT)
             btn.pack(pady=(0,12))
             _update()
 
@@ -441,10 +450,10 @@ class StudentPage(ctk.CTkFrame):
             self._notify("Profile photo updated successfully", "success")
             dialog.destroy()
 
-        ctk.CTkButton(frame, text="📷 Take Photo", command=take_photo, fg_color="#1E88E5").grid(row=0, column=0, padx=8, pady=(8,4))
-        ctk.CTkButton(frame, text="📁 Upload Photo", command=upload_file, fg_color="#2A7F62").grid(row=1, column=0, padx=8, pady=(4,8))
-        ctk.CTkButton(frame, text="Update", command=do_update, fg_color="#0F766E").grid(row=2, column=0, padx=8, pady=(8,8))
-        ctk.CTkButton(frame, text="Cancel", command=dialog.destroy, fg_color="#A1A1A1").grid(row=3, column=0, padx=8, pady=(0,8))
+        ctk.CTkButton(frame, text="📷 Take Photo", command=take_photo, fg_color=theme.ACCENT).grid(row=0, column=0, padx=8, pady=(8,4))
+        ctk.CTkButton(frame, text="📁 Upload Photo", command=upload_file, fg_color=theme.BTN_SUCCESS).grid(row=1, column=0, padx=8, pady=(4,8))
+        ctk.CTkButton(frame, text="Update", command=do_update, fg_color=theme.BTN_SUCCESS).grid(row=2, column=0, padx=8, pady=(8,8))
+        ctk.CTkButton(frame, text="Cancel", command=dialog.destroy, fg_color=theme.BTN_SECONDARY).grid(row=3, column=0, padx=8, pady=(0,8))
 
     def _handle_delete_student(self, student_id: str, student_name: str) -> None:
         if not student_id:

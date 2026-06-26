@@ -18,7 +18,10 @@ from core.database import (
     get_student_profile,
     get_students_by_class,
 )
+from core.database import soft_delete_student, log_action
 from core.face_engine import get_model_status
+from gui import theme
+from gui.widgets import ThemedRangePicker
 
 # Optional heavy deps
 try:
@@ -90,24 +93,24 @@ class ClassHubPage(ctk.CTkFrame):
         root.grid_rowconfigure(1, weight=1)
 
         # Top card: title and add control
-        top_card = ctk.CTkFrame(root, fg_color="#1E1E1E", corner_radius=8)
+        top_card = ctk.CTkFrame(root, fg_color=theme.BG_SURFACE, corner_radius=8)
         top_card.grid(row=0, column=0, sticky="ew", padx=20, pady=(13, 6))
         top_card.grid_columnconfigure(0, weight=1)
         top_card.grid_columnconfigure(1, weight=0)
 
         left = ctk.CTkFrame(top_card, fg_color="transparent")
         left.grid(row=0, column=0, sticky="w", padx=(12,0), pady=12)
-        title = ctk.CTkLabel(left, text="Classes", font=ctk.CTkFont(size=28, weight='bold'), text_color='white')
+        title = ctk.CTkLabel(left, text="Classes", font=ctk.CTkFont(size=28, weight='bold'), text_color=theme.TEXT_PRIMARY)
         title.grid(row=0, column=0, sticky='w')
-        self.class_count_label = ctk.CTkLabel(left, text="0 classes", font=ctk.CTkFont(size=13), text_color='#B0BEC5')
+        self.class_count_label = ctk.CTkLabel(left, text="0 classes", font=ctk.CTkFont(size=13), text_color=theme.TEXT_SECONDARY)
         self.class_count_label.grid(row=1, column=0, sticky='w', pady=(2,0))
 
-        add_btn = ctk.CTkButton(top_card, text="Add Class", fg_color="#4CAF50", command=self._toggle_add_panel)
+        add_btn = ctk.CTkButton(top_card, text="Add Class", fg_color=theme.BTN_SUCCESS, command=self._toggle_add_panel)
         add_btn.grid(row=0, column=1, sticky='e', padx=(0,12), pady=12)
 
         # Slide-down add panel (hidden by default)
         # placed under top_card visually; styled as card
-        self._add_panel = ctk.CTkFrame(top_card, fg_color='#1E1E1E', corner_radius=8)
+        self._add_panel = ctk.CTkFrame(top_card, fg_color=theme.BG_SURFACE, corner_radius=8)
         self._add_panel.grid(row=1, column=0, columnspan=2, sticky='ew', padx=12, pady=(8,8))
         self._add_panel.grid_columnconfigure(0, weight=1)
         # build form fields
@@ -124,16 +127,23 @@ class ClassHubPage(ctk.CTkFrame):
         form = ctk.CTkFrame(self._add_panel, fg_color='transparent')
         form.grid(row=0, column=0, sticky='ew', padx=6, pady=6)
         for i, (label, key) in enumerate(labels):
-            ctk.CTkLabel(form, text=label, text_color='white').grid(row=i, column=0, sticky='w', padx=12, pady=(8,4))
-            ent = ctk.CTkEntry(form, height=30)
+            ctk.CTkLabel(form, text=label, text_color=theme.TEXT_PRIMARY).grid(row=i, column=0, sticky='w', padx=12, pady=(8,4))
+            ent = ctk.CTkEntry(form,
+                height=42,
+                fg_color=theme.BG_SURFACE_ALT,
+                border_width=0,
+                text_color=theme.TEXT_PRIMARY,
+                placeholder_text_color=theme.TEXT_MUTED,
+                corner_radius=6,
+            )
             ent.grid(row=i, column=1, sticky='ew', padx=12, pady=(8,4))
             self._add_entries[key] = ent
         form.grid_columnconfigure(1, weight=1)
         btn_frame = ctk.CTkFrame(form, fg_color='transparent')
         btn_frame.grid(row=len(labels), column=0, columnspan=2, sticky='e', padx=12, pady=(8,12))
-        save_btn = ctk.CTkButton(btn_frame, text="Save", fg_color="#4CAF50", command=self._handle_add_class)
+        save_btn = ctk.CTkButton(btn_frame, text="Save", fg_color=theme.BTN_SUCCESS, command=self._handle_add_class)
         save_btn.grid(row=0, column=0, padx=(0,8))
-        cancel_btn = ctk.CTkButton(btn_frame, text="Cancel", fg_color="#2A2A2A", command=self._toggle_add_panel)
+        cancel_btn = ctk.CTkButton(btn_frame, text="Cancel", fg_color=theme.BG_SURFACE_ALT, command=self._toggle_add_panel)
         cancel_btn.grid(row=0, column=1)
         # hide initially
         try:
@@ -142,7 +152,7 @@ class ClassHubPage(ctk.CTkFrame):
             pass
 
         # Bottom card: list of class cards (scrollable)
-        bottom_card = ctk.CTkFrame(root, fg_color="#1E1E1E", corner_radius=8)
+        bottom_card = ctk.CTkFrame(root, fg_color=theme.BG_SURFACE, corner_radius=8)
         bottom_card.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 13))
         bottom_card.grid_propagate(False)
         bottom_card.grid_rowconfigure(0, weight=1)
@@ -194,7 +204,7 @@ class ClassHubPage(ctk.CTkFrame):
         # render full-width compact cards
         self._class_map = {}
         for idx, c in enumerate(self._classes):
-            card = ctk.CTkFrame(self.cards_frame, fg_color="#2A2A2A", corner_radius=10)
+            card = ctk.CTkFrame(self.cards_frame, fg_color=theme.BG_SURFACE_ALT, corner_radius=10)
             # full width, fixed height
             card.grid(row=idx, column=0, sticky="ew", padx=12, pady=6)
             card.configure(height=60)
@@ -208,11 +218,11 @@ class ClassHubPage(ctk.CTkFrame):
             card.grid_columnconfigure(4, weight=0, minsize=50)
 
             # class name
-            name_lbl = ctk.CTkLabel(card, text=c.get("name", ""), font=ctk.CTkFont(size=15, weight="bold"), text_color="white")
+            name_lbl = ctk.CTkLabel(card, text=c.get("name", ""), font=ctk.CTkFont(size=15, weight="bold"), text_color=theme.TEXT_PRIMARY)
             name_lbl.grid(row=0, column=0, sticky="w", padx=(16,0), pady=0)
 
             # section
-            sect_lbl = ctk.CTkLabel(card, text=c.get("section", ""), text_color="#B0BEC5", font=ctk.CTkFont(size=12))
+            sect_lbl = ctk.CTkLabel(card, text=c.get("section", ""), text_color=theme.TEXT_SECONDARY, font=ctk.CTkFont(size=12))
             sect_lbl.grid(row=0, column=1, sticky="ew")
 
             # present count
@@ -227,7 +237,7 @@ class ClassHubPage(ctk.CTkFrame):
             except Exception:
                 # fallback to stored max_students if query fails
                 total = int(c.get("max_students") or 0)
-            ctr_lbl = ctk.CTkLabel(card, text=f"{present} / {total} Present", text_color="#FFFFFF", font=ctk.CTkFont(size=12))
+            ctr_lbl = ctk.CTkLabel(card, text=f"{present} / {total} Present", text_color=theme.TEXT_PRIMARY, font=ctk.CTkFont(size=12))
             ctr_lbl.grid(row=0, column=2, sticky="ew")
 
             # attendance percentage label (colored)
@@ -238,7 +248,7 @@ class ClassHubPage(ctk.CTkFrame):
             pct_lbl.grid(row=0, column=3, sticky="ew")
 
             # three-dots menu button instead of Delete
-            dots_btn = ctk.CTkButton(card, text="⋮", width=32, height=32, fg_color="transparent", hover_color="#2A2A2A", font=ctk.CTkFont(size=18))
+            dots_btn = ctk.CTkButton(card, text="⋮", width=32, height=32, fg_color="transparent", hover_color=theme.BG_SURFACE_ALT, font=ctk.CTkFont(size=18))
             dots_btn.grid(row=0, column=4, sticky="e", padx=(0,8))
             dots_btn.configure(command=lambda cid=c.get("id"), w=dots_btn: self._show_card_menu(cid, w))
 
@@ -259,7 +269,7 @@ class ClassHubPage(ctk.CTkFrame):
 
         self.class_count_label.configure(text=f"{len(self._classes)} classes")
         if not self._classes:
-            lbl = ctk.CTkLabel(self.cards_frame, text="No classes added yet. Click Add Class to get started.", text_color="white")
+            lbl = ctk.CTkLabel(self.cards_frame, text="No classes added yet. Click Add Class to get started.", text_color=theme.TEXT_SECONDARY)
             lbl.grid(row=0, column=0, padx=12, pady=12)
 
     def _confirm_and_delete(self, class_id: int, class_name: str) -> None:
@@ -281,36 +291,36 @@ class ClassHubPage(ctk.CTkFrame):
         root.grid_columnconfigure(0, weight=1)
 
         # Top card: class title and date navigator
-        top_card = ctk.CTkFrame(root, fg_color="#1E1E1E", corner_radius=8)
+        top_card = ctk.CTkFrame(root, fg_color=theme.BG_SURFACE, corner_radius=8)
         top_card.grid(row=0, column=0, sticky="ew", padx=20, pady=(13, 6))
         top_card.grid_columnconfigure(0, weight=0)
         top_card.grid_columnconfigure(1, weight=1)
         top_card.grid_columnconfigure(2, weight=0)
 
-        back = ctk.CTkButton(top_card, text="◀ Back", command=self._back_to_level0, fg_color="#2A2A2A")
+        back = ctk.CTkButton(top_card, text="◀ Back", command=self._back_to_level0, fg_color=theme.BG_SURFACE_ALT)
         back.grid(row=0, column=0, sticky="w", padx=(12,8), pady=12)
 
-        self.level1_title = ctk.CTkLabel(top_card, text="", font=ctk.CTkFont(size=24, weight="bold"), text_color="white")
+        self.level1_title = ctk.CTkLabel(top_card, text="", font=ctk.CTkFont(size=24, weight="bold"), text_color=theme.TEXT_PRIMARY)
         self.level1_title.grid(row=0, column=1, sticky="w", padx=(0,0), pady=12)
 
         nav_frame = ctk.CTkFrame(top_card, fg_color="transparent")
         nav_frame.grid(row=0, column=2, sticky="e", padx=(8,12), pady=12)
         self.prev_btn = ctk.CTkButton(nav_frame, text="◀", width=40, command=lambda: self._change_date(-1))
         self.prev_btn.grid(row=0, column=0)
-        self.level1_date_label = ctk.CTkLabel(nav_frame, text=self._format_date(self._selected_date), text_color="white")
+        self.level1_date_label = ctk.CTkLabel(nav_frame, text=self._format_date(self._selected_date), text_color=theme.TEXT_PRIMARY)
         self.level1_date_label.grid(row=0, column=1, padx=8)
         self.next_btn = ctk.CTkButton(nav_frame, text="▶", width=40, command=lambda: self._change_date(1))
         self.next_btn.grid(row=0, column=2)
 
         # Bottom card: main content area
-        bottom_card = ctk.CTkFrame(root, fg_color="#1E1E1E", corner_radius=8)
+        bottom_card = ctk.CTkFrame(root, fg_color=theme.BG_SURFACE, corner_radius=8)
         bottom_card.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 13))
         bottom_card.grid_rowconfigure(0, weight=1)
         # single column layout now; left_card takes full width
         bottom_card.grid_columnconfigure(0, weight=1)
 
         # Left inner card (students list)
-        left_card = ctk.CTkFrame(bottom_card, fg_color="#2A2A2A", corner_radius=8)
+        left_card = ctk.CTkFrame(bottom_card, fg_color=theme.BG_SURFACE_ALT, corner_radius=8)
         # left_card now spans full width
         left_card.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
         left_card.grid_rowconfigure(1, weight=1)
@@ -322,9 +332,9 @@ class ClassHubPage(ctk.CTkFrame):
         toggle_frame.grid(row=0, column=0, sticky="ew", padx=6, pady=(8,6))
         toggle_frame.grid_columnconfigure(0, weight=1)
         toggle_frame.grid_columnconfigure(1, weight=1)
-        self._attendance_btn = ctk.CTkButton(toggle_frame, text="Attendance", fg_color="#1E88E5", command=lambda: self._set_level1_view("attendance"))
+        self._attendance_btn = ctk.CTkButton(toggle_frame, text="Attendance", fg_color=theme.ACCENT, hover_color=theme.ACCENT, command=lambda: self._set_level1_view("attendance"))
         self._attendance_btn.grid(row=0, column=0, sticky="w", padx=(8,4))
-        self._students_btn = ctk.CTkButton(toggle_frame, text="Students", fg_color="#2A2A2A", command=lambda: self._set_level1_view("students"))
+        self._students_btn = ctk.CTkButton(toggle_frame, text="Students", fg_color=theme.BG_SURFACE_ALT, hover_color=theme.BG_HOVER, command=lambda: self._set_level1_view("students"))
         self._students_btn.grid(row=0, column=1, sticky="e", padx=(4,8))
 
         # header row labels area (we will populate in render)
@@ -340,14 +350,18 @@ class ClassHubPage(ctk.CTkFrame):
 
         # Stats bar at bottom of left_card (reserved height) — visible only in Attendance mode
         try:
-            self._level1_stats_bar = ctk.CTkFrame(left_card, fg_color="#1A1A1A", height=50)
+            self._level1_stats_bar = ctk.CTkFrame(left_card, fg_color=theme.BG_SURFACE, height=50)
             self._level1_stats_bar.grid(row=2, column=0, sticky="ew", padx=6, pady=(8,8))
             self._level1_stats_bar.grid_propagate(False)
+            try:
+                self._level1_stats_bar.grid_rowconfigure(0, weight=1)
+            except Exception:
+                pass
             # labels: Present, Late, Absent, Percentage
             self._stats_present_lbl = ctk.CTkLabel(self._level1_stats_bar, text="🟢 Present: 0", text_color=_STATUS_COLORS['present'])
             self._stats_late_lbl = ctk.CTkLabel(self._level1_stats_bar, text="🟡 Late: 0", text_color=_STATUS_COLORS['late'])
             self._stats_absent_lbl = ctk.CTkLabel(self._level1_stats_bar, text="🔴 Absent: 0", text_color=_STATUS_COLORS['absent'])
-            self._stats_pct_lbl = ctk.CTkLabel(self._level1_stats_bar, text="📊 0%", text_color='white')
+            self._stats_pct_lbl = ctk.CTkLabel(self._level1_stats_bar, text="📊 0%", text_color=theme.TEXT_PRIMARY)
             # place labels in a row
             self._stats_present_lbl.grid(row=0, column=0, padx=(12,8))
             self._stats_late_lbl.grid(row=0, column=1, padx=(8,8))
@@ -377,8 +391,9 @@ class ClassHubPage(ctk.CTkFrame):
         self._level1_view_mode = mode
         # update button colors
         try:
-            self._attendance_btn.configure(fg_color="#1E88E5" if mode == "attendance" else "#2A2A2A")
-            self._students_btn.configure(fg_color="#1E88E5" if mode == "students" else "#2A2A2A")
+            att = mode == "attendance"
+            self._attendance_btn.configure(fg_color=theme.ACCENT if att else theme.BG_SURFACE_ALT, hover_color=theme.ACCENT if att else theme.BG_HOVER)
+            self._students_btn.configure(fg_color=theme.ACCENT if not att else theme.BG_SURFACE_ALT, hover_color=theme.ACCENT if not att else theme.BG_HOVER)
         except Exception:
             pass
         # show/hide stats bar depending on mode
@@ -438,7 +453,7 @@ class ClassHubPage(ctk.CTkFrame):
             header_container.grid_columnconfigure(1, weight=1)
             header_container.grid_columnconfigure(2, minsize=180, weight=0)
             for i, h in enumerate(["Student ID", "Name", "Status"]):
-                ctk.CTkLabel(header_container, text=h, text_color="#888888", font=ctk.CTkFont(size=12, weight="bold"), anchor="center").grid(row=0, column=i, sticky="ew", padx=6, pady=0)
+                ctk.CTkLabel(header_container, text=h, text_color=theme.TEXT_SECONDARY, font=ctk.CTkFont(size=12, weight="bold"), anchor="center").grid(row=0, column=i, sticky="ew", padx=6, pady=0)
             # rows
             def _sid_key(x):
                 try:
@@ -451,7 +466,7 @@ class ClassHubPage(ctk.CTkFrame):
                 name = self._display_name(r)
                 status = str(r.get("status", "")).lower()
                 fg = _STATUS_COLORS.get(status, "white")
-                bg = "#1E1E1E" if idx % 2 == 0 else "#252525"
+                bg = theme.BG_ROW_ODD if idx % 2 == 0 else theme.BG_ROW_EVEN
                 rnum = idx + 1
                 # row container
                 row_frame = ctk.CTkFrame(self._level1_scroll, fg_color=bg, corner_radius=4, height=44)
@@ -461,8 +476,8 @@ class ClassHubPage(ctk.CTkFrame):
                 row_frame.grid_columnconfigure(1, weight=1)
                 row_frame.grid_columnconfigure(2, minsize=180, weight=0)
                 row_frame.grid_rowconfigure(0, weight=1)
-                lbl_id = ctk.CTkLabel(row_frame, text=sid, text_color="white", fg_color="transparent", anchor="center")
-                lbl_name = ctk.CTkLabel(row_frame, text=name, text_color="white", fg_color="transparent", font=ctk.CTkFont(size=12), anchor="center")
+                lbl_id = ctk.CTkLabel(row_frame, text=sid, text_color=theme.TEXT_PRIMARY, fg_color="transparent", anchor="center")
+                lbl_name = ctk.CTkLabel(row_frame, text=name, text_color=theme.TEXT_PRIMARY, fg_color="transparent", font=ctk.CTkFont(size=12), anchor="center")
                 lbl_status = ctk.CTkLabel(row_frame, text=status.capitalize() if status else "-", text_color=fg, fg_color="transparent", anchor="center")
                 lbl_id.grid(row=0, column=0, sticky="ew", padx=6, pady=0)
                 lbl_name.grid(row=0, column=1, sticky="ew", padx=6, pady=0)
@@ -490,9 +505,10 @@ class ClassHubPage(ctk.CTkFrame):
             header_container.grid(row=0, column=0, sticky='ew', padx=8, pady=(4,4))
             header_container.grid_columnconfigure(0, minsize=100, weight=0)
             header_container.grid_columnconfigure(1, weight=1)
-            header_container.grid_columnconfigure(2, minsize=180, weight=0)
-            for i, h in enumerate(["Student ID", "Name", "Registered Date"]):
-                ctk.CTkLabel(header_container, text=h, text_color="#888888", font=ctk.CTkFont(size=12, weight="bold"), anchor="center").grid(row=0, column=i, sticky="ew", padx=6, pady=0)
+            header_container.grid_columnconfigure(2, minsize=160, weight=0)
+            header_container.grid_columnconfigure(3, minsize=80, weight=0)
+            for i, h in enumerate(["Student ID", "Name", "Registered Date", "Actions"]):
+                ctk.CTkLabel(header_container, text=h, text_color=theme.TEXT_SECONDARY, font=ctk.CTkFont(size=12, weight="bold"), anchor="center").grid(row=0, column=i, sticky="ew", padx=6, pady=0)
             def _sid_key(x):
                 try:
                     return int(str(x.get('student_id', 0)).strip() or 0)
@@ -502,18 +518,19 @@ class ClassHubPage(ctk.CTkFrame):
                 sid = str(s.get("student_id") or s.get("id") or "-")
                 name = self._format_profile_name(s)
                 reg = s.get("registered_date") or s.get("created_at") or s.get("created") or s.get("registered") or "-"
-                bg = "#1E1E1E" if idx % 2 == 0 else "#252525"
+                bg = theme.BG_ROW_ODD if idx % 2 == 0 else theme.BG_ROW_EVEN
                 rnum = idx + 1
                 row_frame = ctk.CTkFrame(self._level1_scroll, fg_color=bg, corner_radius=4, height=44)
                 row_frame.grid(row=rnum, column=0, sticky="ew", padx=8, pady=(2,2))
                 row_frame.grid_propagate(False)
                 row_frame.grid_columnconfigure(0, minsize=100, weight=0)
                 row_frame.grid_columnconfigure(1, weight=1)
-                row_frame.grid_columnconfigure(2, minsize=180, weight=0)
+                row_frame.grid_columnconfigure(2, minsize=160, weight=0)
+                row_frame.grid_columnconfigure(3, minsize=80, weight=0)
                 row_frame.grid_rowconfigure(0, weight=1)
-                lbl_id = ctk.CTkLabel(row_frame, text=sid, text_color="white", fg_color="transparent", anchor="center")
-                name_lbl = ctk.CTkLabel(row_frame, text=name, text_color="white", fg_color="transparent", font=ctk.CTkFont(size=12), anchor="center")
-                lbl_reg = ctk.CTkLabel(row_frame, text=str(reg), text_color="#D0D0D0", fg_color="transparent", anchor="center")
+                lbl_id = ctk.CTkLabel(row_frame, text=sid, text_color=theme.TEXT_PRIMARY, fg_color="transparent", anchor="center")
+                name_lbl = ctk.CTkLabel(row_frame, text=name, text_color=theme.TEXT_PRIMARY, fg_color="transparent", font=ctk.CTkFont(size=12), anchor="center")
+                lbl_reg = ctk.CTkLabel(row_frame, text=str(reg), text_color=theme.TEXT_SECONDARY, fg_color="transparent", anchor="center")
                 lbl_id.grid(row=0, column=0, sticky="ew", padx=6, pady=0)
                 name_lbl.grid(row=0, column=1, sticky="ew", padx=6, pady=0)
                 lbl_reg.grid(row=0, column=2, sticky="ew", padx=6, pady=0)
@@ -522,14 +539,38 @@ class ClassHubPage(ctk.CTkFrame):
                     name_lbl.configure(cursor="hand2")
                 except Exception:
                     pass
+                try:
+                    del_btn = ctk.CTkButton(
+                        row_frame,
+                        text="Delete",
+                        width=70,
+                        height=28,
+                        fg_color=theme.BTN_DANGER,
+                        hover_color=theme.BTN_DANGER_HVR,
+                        font=ctk.CTkFont(size=12),
+                        command=lambda sid=sid, n=name: self._confirm_soft_delete(sid, n),
+                    )
+                    del_btn.grid(row=0, column=3, sticky="e", padx=(4, 8))
+                except Exception:
+                    pass
             # update chart with empty or computed values
             self._update_level1_chart([])
 
     # ---------- Helper methods referenced during init ----------
     def _apply_period(self, key: str, student_id: str | None = None) -> None:
+        # Close the custom calendar popup if it's open
+        try:
+            if getattr(self, '_cal_panel', None) and self._cal_panel._popup is not None:
+                self._cal_panel.close_calendar()
+        except Exception:
+            pass
         for k, btn in getattr(self, "_filter_buttons", {}).items():
             try:
-                btn.configure(fg_color="#1E88E5" if k == key else "#2A2A2A")
+                active = (k == key)
+                btn.configure(
+                    fg_color=theme.ACCENT if active else theme.BG_SURFACE_ALT,
+                    hover_color=theme.ACCENT if active else theme.BG_HOVER,
+                )
             except Exception:
                 pass
         self._filter_period = key
@@ -546,35 +587,25 @@ class ClassHubPage(ctk.CTkFrame):
         else:
             start = today - timedelta(days=30)
         self._load_student_history(sid, start, today)
-
     def _show_custom_filter(self) -> None:
-        win = ctk.CTkToplevel(self)
-        win.title("Custom Filter")
-        win.geometry("360x120")
-        ctk.CTkLabel(win, text="From (YYYY-MM-DD)").pack(padx=8, pady=(8, 2))
-        from_entry = ctk.CTkEntry(win, placeholder_text="YYYY-MM-DD")
-        from_entry.pack(padx=8, pady=2)
-        ctk.CTkLabel(win, text="To (YYYY-MM-DD)").pack(padx=8, pady=(6, 2))
-        to_entry = ctk.CTkEntry(win, placeholder_text="YYYY-MM-DD")
-        to_entry.pack(padx=8, pady=2)
+        self._cal_panel.open_popup_anchored_to(self._filter_buttons["custom"])
 
-        def apply_custom():
-            frm = from_entry.get().strip()
-            to = to_entry.get().strip()
-            try:
-                dfrom = datetime.fromisoformat(frm).date()
-                dto = datetime.fromisoformat(to).date()
-            except Exception:
-                self._notify("Invalid dates. Use YYYY-MM-DD.", "error")
-                return
-            sid = getattr(self, "_last_student_id", None)
-            if not sid:
-                self._notify("No student selected.", "error")
-                return
-            self._load_student_history(sid, dfrom, dto)
-            win.destroy()
-
-        ctk.CTkButton(win, text="Apply", command=apply_custom).pack(pady=8)
+    def _on_custom_range_selected(self, from_date: date, to_date: date) -> None:
+        sid = getattr(self, "_last_student_id", None)
+        if not sid:
+            self._notify("No student selected.", "error")
+            return
+        # Highlight the Custom button as active
+        try:
+            for k, btn in self._filter_buttons.items():
+                active = (k == "custom")
+                btn.configure(
+                    fg_color=theme.ACCENT if active else theme.BG_SURFACE_ALT,
+                    hover_color=theme.ACCENT if active else theme.BG_HOVER,
+                )
+        except Exception:
+            pass
+        self._load_student_history(sid, from_date, to_date)
 
     def _export_excel(self) -> None:
         if pd is None:
@@ -692,7 +723,7 @@ class ClassHubPage(ctk.CTkFrame):
         menu = ctk.CTkToplevel(self)
         menu.overrideredirect(True)
         menu.lift()
-        frame = ctk.CTkFrame(menu, fg_color="#1A1A1A", corner_radius=6)
+        frame = ctk.CTkFrame(menu, fg_color=theme.BG_SURFACE, corner_radius=6)
         frame.pack(padx=6, pady=6)
 
         def do_delete():
@@ -704,7 +735,7 @@ class ClassHubPage(ctk.CTkFrame):
             # reuse existing delete confirmation flow
             self._confirm_and_delete(class_id, self._class_map.get(class_id, {}).get("name", ""))
 
-        del_btn = ctk.CTkButton(frame, text="Delete Class", fg_color="#C62828", hover_color="#B71C1C", command=do_delete)
+        del_btn = ctk.CTkButton(frame, text="Delete Class", fg_color=theme.BTN_DANGER, hover_color=theme.BTN_DANGER_HVR, command=do_delete)
         del_btn.pack(fill="x", pady=(4, 6), padx=4)
         cancel_btn = ctk.CTkButton(frame, text="Cancel", fg_color="transparent", command=lambda: menu.destroy())
         cancel_btn.pack(fill="x", pady=(0, 4), padx=4)
@@ -721,74 +752,312 @@ class ClassHubPage(ctk.CTkFrame):
         # clear active ref when destroyed
         menu.bind('<Destroy>', lambda e: setattr(self, '_active_popup', None))
 
+    def _confirm_soft_delete(self, student_id: str, student_name: str) -> None:
+        """Show a confirmation dialog then soft-delete the student."""
+        dlg = ctk.CTkToplevel(self)
+        dlg.title("Delete Student")
+        dlg.geometry("420x180")
+        try:
+            dlg.transient(self.winfo_toplevel())
+        except Exception:
+            pass
+        try:
+            dlg.grab_set()
+        except Exception:
+            pass
+
+        card = ctk.CTkFrame(dlg, fg_color=theme.BG_SURFACE, corner_radius=0)
+        card.pack(fill="both", expand=True, padx=8, pady=8)
+
+        ctk.CTkLabel(
+            card,
+            text=f"Delete {student_name}?",
+            font=ctk.CTkFont(size=16, weight="bold"),
+        ).pack(anchor="w", padx=18, pady=(16, 6))
+        ctk.CTkLabel(
+            card,
+            text="This will move the student to the Archive. A superadmin can restore or permanently delete them from there.",
+            justify="left",
+            wraplength=370,
+            text_color=theme.TEXT_SECONDARY,
+        ).pack(anchor="w", padx=18, pady=(0, 14))
+
+        actions = ctk.CTkFrame(card, fg_color="transparent")
+        actions.pack(fill="x", padx=18, pady=(0, 14))
+
+        def _do_delete():
+            try:
+                soft_delete_student(student_id, self.username or "system")
+                log_action(
+                    self.username or "system",
+                    "SOFT_DELETE_STUDENT",
+                    f"student_id={student_id}",
+                )
+                try:
+                    dlg.grab_release()
+                except Exception:
+                    pass
+                dlg.destroy()
+                self._notify(f"{student_name} moved to archive.", "success")
+                # If we're in level 2, go back to level 1 and refresh
+                try:
+                    if self.level2.winfo_ismapped():
+                        self._back_to_level1()
+                except Exception:
+                    pass
+                self._render_level1()
+            except Exception as err:
+                self._notify(f"Failed to delete student: {err}", "error")
+
+        ctk.CTkButton(actions, text="Cancel", command=dlg.destroy, fg_color=theme.BG_SURFACE_ALT).pack(side="left")
+        ctk.CTkButton(
+            actions,
+            text="Move to Archive",
+            command=_do_delete,
+            fg_color=theme.BTN_DANGER,
+            hover_color=theme.BTN_DANGER_HVR,
+        ).pack(side="right")
+
     # ---------------- Level 2: Student Detail ----------------
     def _build_level2(self) -> None:
         root = self.level2
-        top = ctk.CTkFrame(root, fg_color='transparent')
-        top.grid(row=0, column=0, sticky='ew', padx=24, pady=(12,6))
-        top.grid_columnconfigure(1, weight=1)
-        back = ctk.CTkButton(top, text='◀ Back', command=self._back_to_level1, fg_color='#2A2A2A')
-        back.grid(row=0, column=0, sticky='w')
-        self.level2_title = ctk.CTkLabel(top, text='', font=ctk.CTkFont(size=18, weight='bold'), text_color='white')
-        self.level2_title.grid(row=0, column=1, sticky='w')
+        # ensure root expands content
+        try:
+            root.grid_columnconfigure(0, weight=1)
+            root.grid_rowconfigure(1, weight=1)
+        except Exception:
+            pass
 
-        content = ctk.CTkFrame(root, fg_color='transparent')
-        content.grid(row=1, column=0, sticky='nsew', padx=24, pady=(8,12))
+        # Top bar (back button + title) - keep same placement
+        top = ctk.CTkFrame(root, fg_color="transparent")
+        top.grid(row=0, column=0, sticky="ew", padx=24, pady=(12, 6))
+        top.grid_columnconfigure(1, weight=1)
+        back = ctk.CTkButton(top, text="◀ Back", command=self._back_to_level1, fg_color=theme.BG_SURFACE_ALT)
+        back.grid(row=0, column=0, sticky="w")
+        self.level2_title = ctk.CTkLabel(top, text="", font=ctk.CTkFont(size=18, weight="bold"), text_color=theme.TEXT_PRIMARY)
+        self.level2_title.grid(row=0, column=1, sticky="w")
+
+        # Content area with two columns
+        content = ctk.CTkFrame(root, fg_color="transparent")
+        content.grid(row=1, column=0, sticky="nsew", padx=24, pady=(8, 12))
         content.grid_columnconfigure(0, weight=3)
         content.grid_columnconfigure(1, weight=2)
+        content.grid_rowconfigure(0, weight=1)
 
-        left = ctk.CTkFrame(content, fg_color='transparent')
-        left.grid(row=0, column=0, sticky='nsew', padx=(0,12))
+        # LEFT COLUMN
+        left = ctk.CTkFrame(content, fg_color="transparent")
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
         left.grid_columnconfigure(0, weight=1)
 
-        # table card for student history
-        table_card = ctk.CTkFrame(left, fg_color='#1E1E1E')
-        table_card.grid(row=0, column=0, sticky='nsew', pady=(0,0))
+        # Filter bar
+        filter_frame = ctk.CTkFrame(left, fg_color=theme.BG_SURFACE, corner_radius=8)
+        filter_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, 8))
+        for i in range(4):
+            try:
+                filter_frame.grid_columnconfigure(i, weight=1)
+            except Exception:
+                pass
+        self._filter_buttons = {}
+        periods = [("7d", "7 Days"), ("15d", "15 Days"), ("30d", "1 Month"), ("custom", "Custom")]
+        # ensure default period
+        if not hasattr(self, "_filter_period"):
+            self._filter_period = "30d"
+        for i, (key, label) in enumerate(periods):
+            cmd = (self._show_custom_filter if key == "custom" else (lambda k=key: self._apply_period(k)))
+            is_active = (key == self._filter_period)
+            btn = ctk.CTkButton(
+                filter_frame, text=label, height=36, corner_radius=6, command=cmd,
+                fg_color=theme.ACCENT if is_active else theme.BG_SURFACE_ALT,
+                hover_color=theme.ACCENT if is_active else theme.BG_HOVER,
+            )
+            btn.grid(row=0, column=i, sticky="ew", padx=6, pady=6)
+            self._filter_buttons[key] = btn
+
+        # Range picker — not placed in layout; popup opens anchored to Custom button
+        self._cal_panel = ThemedRangePicker(
+            left,
+            on_change=self._on_custom_range_selected,
+        )
+
+        # Table card with header + scroll area
+        table_card = ctk.CTkFrame(left, fg_color=theme.BG_SURFACE, corner_radius=8)
+        table_card.grid(row=1, column=0, sticky="nsew")
+        self._table_card = table_card
+        left.grid_rowconfigure(1, weight=1)
         table_card.grid_columnconfigure(0, weight=1)
-        self._student_scroll = ctk.CTkScrollableFrame(table_card, fg_color='transparent')
-        self._student_scroll.grid(row=0, column=0, sticky='nsew', padx=4, pady=4)
 
-        # summary row
-        summary = ctk.CTkFrame(left, fg_color='transparent')
-        summary.grid(row=1, column=0, sticky='ew', pady=(8,0))
-        self._present_label = ctk.CTkLabel(summary, text='Present: 0', text_color=_STATUS_COLORS['present'], font=ctk.CTkFont(size=14, weight='bold'))
-        self._late_label = ctk.CTkLabel(summary, text='Late: 0', text_color=_STATUS_COLORS['late'], font=ctk.CTkFont(size=14, weight='bold'))
-        self._absent_label = ctk.CTkLabel(summary, text='Absent: 0', text_color=_STATUS_COLORS['absent'], font=ctk.CTkFont(size=14, weight='bold'))
-        self._pct_label = ctk.CTkLabel(summary, text='Attendance: 0%', text_color='#FFFFFF', font=ctk.CTkFont(size=14, weight='bold'))
-        self._present_label.grid(row=0, column=0, padx=(0,12))
-        self._late_label.grid(row=0, column=1, padx=(0,12))
-        self._absent_label.grid(row=0, column=2, padx=(0,12))
-        self._pct_label.grid(row=0, column=3, padx=(0,12))
+        header = ctk.CTkFrame(table_card, fg_color=theme.BG_SURFACE_ALT, corner_radius=6)
+        header.grid(row=0, column=0, sticky="ew", padx=8, pady=(8, 6))
+        header.grid_columnconfigure(0, weight=2)
+        header.grid_columnconfigure(1, weight=1)
+        header.grid_columnconfigure(2, weight=1)
+        ctk.CTkLabel(header, text="Date", font=ctk.CTkFont(size=12, weight="bold"), text_color=theme.TEXT_SECONDARY, anchor="w").grid(row=0, column=0, sticky="w", padx=16, pady=10)
+        ctk.CTkLabel(header, text="Time", font=ctk.CTkFont(size=12, weight="bold"), text_color=theme.TEXT_SECONDARY, anchor="w").grid(row=0, column=1, sticky="w", padx=16, pady=10)
+        ctk.CTkLabel(header, text="Status", font=ctk.CTkFont(size=12, weight="bold"), text_color=theme.TEXT_SECONDARY, anchor="w").grid(row=0, column=2, sticky="w", padx=16, pady=10)
 
-        # right: profile + export + chart
-        right = ctk.CTkFrame(content, fg_color='transparent')
-        right.grid(row=0, column=1, sticky='nsew')
-        profile_card = ctk.CTkFrame(right, fg_color='#1A1A1A', corner_radius=6)
-        profile_card.grid(row=0, column=0, sticky='ew', pady=(0,12), padx=8)
+        self._student_scroll = ctk.CTkScrollableFrame(table_card, fg_color="transparent")
+        self._student_scroll.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        self._student_scroll.grid_columnconfigure(0, weight=2)
+        self._student_scroll.grid_columnconfigure(1, weight=1)
+        self._student_scroll.grid_columnconfigure(2, weight=1)
+
+        # Summary row
+        summary = ctk.CTkFrame(left, fg_color=theme.BG_SURFACE, corner_radius=8)
+        summary.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        for i in range(4):
+            try:
+                summary.grid_columnconfigure(i, weight=1)
+            except Exception:
+                pass
+
+        # Present
+        p_frame = ctk.CTkFrame(summary, fg_color="transparent")
+        p_frame.grid(row=0, column=0, sticky="nsew")
+        self._present_count_lbl = ctk.CTkLabel(p_frame, text="0", font=ctk.CTkFont(size=22, weight="bold"), text_color=_STATUS_COLORS["present"])
+        self._present_count_lbl.pack(anchor="center", pady=(6, 0))
+        self._present_label = ctk.CTkLabel(p_frame, text="Present", font=ctk.CTkFont(size=11), text_color=theme.TEXT_SECONDARY)
+        self._present_label.pack(anchor="center", pady=(2, 8))
+
+        # Late
+        l_frame = ctk.CTkFrame(summary, fg_color="transparent")
+        l_frame.grid(row=0, column=1, sticky="nsew")
+        self._late_count_lbl = ctk.CTkLabel(l_frame, text="0", font=ctk.CTkFont(size=22, weight="bold"), text_color=_STATUS_COLORS["late"])
+        self._late_count_lbl.pack(anchor="center", pady=(6, 0))
+        self._late_label = ctk.CTkLabel(l_frame, text="Late", font=ctk.CTkFont(size=11), text_color=theme.TEXT_SECONDARY)
+        self._late_label.pack(anchor="center", pady=(2, 8))
+
+        # Absent
+        a_frame = ctk.CTkFrame(summary, fg_color="transparent")
+        a_frame.grid(row=0, column=2, sticky="nsew")
+        self._absent_count_lbl = ctk.CTkLabel(a_frame, text="0", font=ctk.CTkFont(size=22, weight="bold"), text_color=_STATUS_COLORS["absent"])
+        self._absent_count_lbl.pack(anchor="center", pady=(6, 0))
+        self._absent_label = ctk.CTkLabel(a_frame, text="Absent", font=ctk.CTkFont(size=11), text_color=theme.TEXT_SECONDARY)
+        self._absent_label.pack(anchor="center", pady=(2, 8))
+
+        # Attendance %
+        pct_frame = ctk.CTkFrame(summary, fg_color="transparent")
+        pct_frame.grid(row=0, column=3, sticky="nsew")
+        # create two names for compatibility
+        self._pct_count_lbl = ctk.CTkLabel(pct_frame, text="0%", font=ctk.CTkFont(size=22, weight="bold"), text_color=theme.TEXT_PRIMARY)
+        self._pct_count_lbl.pack(anchor="center", pady=(6, 0))
+        self._pct_lbl = self._pct_count_lbl
+        self._pct_label = ctk.CTkLabel(pct_frame, text="Attendance", font=ctk.CTkFont(size=11), text_color=theme.TEXT_SECONDARY)
+        self._pct_label.pack(anchor="center", pady=(2, 8))
+
+        # ── RIGHT COLUMN ──────────────────────────────────────────────────────────
+        right = ctk.CTkFrame(content, fg_color="transparent")
+        right.grid(row=0, column=1, sticky="nsew")
+        right.grid_columnconfigure(0, weight=1)
+
+        # Resume-style profile card
+        profile_card = ctk.CTkFrame(right, fg_color=theme.BG_SURFACE, corner_radius=12)
+        profile_card.grid(row=0, column=0, sticky="ew", padx=4, pady=(0, 10))
         profile_card.grid_columnconfigure(0, weight=1)
-        self._profile_photo_frame = ctk.CTkFrame(profile_card, fg_color='transparent', width=120, height=120)
-        self._profile_photo_frame.grid(row=0, column=1, rowspan=3, padx=(8,0))
+
+        # Photo — centered circle
+        self._profile_photo_frame = ctk.CTkFrame(
+            profile_card,
+            fg_color=theme.BG_SURFACE_ALT,
+            corner_radius=60,
+            width=120, height=120,
+        )
+        self._profile_photo_frame.grid(row=0, column=0, pady=(20, 10))
         self._profile_photo_frame.grid_propagate(False)
-        self._profile_name_lbl = ctk.CTkLabel(profile_card, text='', font=ctk.CTkFont(size=16, weight='bold'), text_color='white')
-        self._profile_name_lbl.grid(row=0, column=0, sticky='w')
-        self._profile_id_lbl = ctk.CTkLabel(profile_card, text='', text_color='#D0D0D0')
-        self._profile_id_lbl.grid(row=1, column=0, sticky='w')
-        self._profile_class_lbl = ctk.CTkLabel(profile_card, text='', text_color='#D0D0D0')
-        self._profile_class_lbl.grid(row=2, column=0, sticky='w')
+        self._profile_photo_frame.grid_rowconfigure(0, weight=1)
+        self._profile_photo_frame.grid_columnconfigure(0, weight=1)
 
-        exp_frame = ctk.CTkFrame(right, fg_color='transparent')
-        exp_frame.grid(row=1, column=0, sticky='ew', pady=(6,0))
-        ctk.CTkButton(exp_frame, text='Export PDF', fg_color='#1E88E5', command=self._export_pdf).grid(row=0, column=0, padx=8)
-        ctk.CTkButton(exp_frame, text='Export Excel', fg_color='#2A7F62', command=self._export_excel).grid(row=0, column=1, padx=8)
+        # Full name (centered)
+        self._profile_name_lbl = ctk.CTkLabel(
+            profile_card, text="",
+            font=ctk.CTkFont(size=17, weight="bold"),
+            text_color=theme.TEXT_PRIMARY,
+        )
+        self._profile_name_lbl.grid(row=1, column=0, pady=(0, 2))
 
-        # student chart frame
+        # Student ID (centered, muted)
+        self._profile_id_lbl = ctk.CTkLabel(
+            profile_card, text="",
+            font=ctk.CTkFont(size=12),
+            text_color=theme.TEXT_SECONDARY,
+        )
+        self._profile_id_lbl.grid(row=2, column=0, pady=(0, 14))
+
+        # Divider
+        ctk.CTkFrame(profile_card, fg_color=theme.BORDER, height=1).grid(
+            row=3, column=0, sticky="ew", padx=16, pady=(0, 10),
+        )
+
+        # Detail rows
+        det = ctk.CTkFrame(profile_card, fg_color="transparent")
+        det.grid(row=4, column=0, sticky="ew", padx=18, pady=(0, 18))
+        det.grid_columnconfigure(0, weight=0, minsize=105)
+        det.grid_columnconfigure(1, weight=1)
+
+        _detail_fields = [
+            ("First Name",    "_det_first"),
+            ("Middle Name",   "_det_middle"),
+            ("Last Name",     "_det_last"),
+            ("Class",         "_det_class"),
+            ("Registered By", "_det_reg_by"),
+            ("Registered On", "_det_reg_date"),
+        ]
+        for _r, (_lbl, _attr) in enumerate(_detail_fields):
+            ctk.CTkLabel(
+                det, text=_lbl,
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color=theme.TEXT_SECONDARY,
+                anchor="w",
+            ).grid(row=_r, column=0, sticky="w", pady=4)
+            _val = ctk.CTkLabel(
+                det, text="—",
+                font=ctk.CTkFont(size=12),
+                text_color=theme.TEXT_PRIMARY,
+                anchor="w",
+                wraplength=130,
+            )
+            _val.grid(row=_r, column=1, sticky="ew", padx=(8, 0), pady=4)
+            setattr(self, _attr, _val)
+
+        # Export + Delete buttons
+        exp_frame = ctk.CTkFrame(right, fg_color="transparent")
+        exp_frame.grid(row=1, column=0, sticky="ew", padx=4, pady=(0, 6))
+        exp_frame.grid_columnconfigure(0, weight=1)
+        ctk.CTkButton(
+            exp_frame, text="⬇ Export PDF",
+            fg_color=theme.ACCENT, hover_color=theme.ACCENT_HOVER,
+            height=36, corner_radius=6, command=self._export_pdf,
+        ).grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        ctk.CTkButton(
+            exp_frame, text="⬇ Export Excel",
+            fg_color=theme.BTN_SUCCESS, hover_color=theme.BTN_SUCCESS_HVR,
+            height=36, corner_radius=6, command=self._export_excel,
+        ).grid(row=1, column=0, sticky="ew")
+        ctk.CTkButton(
+            exp_frame, text="Delete Student",
+            fg_color=theme.BTN_DANGER, hover_color=theme.BTN_DANGER_HVR,
+            height=36, corner_radius=6, command=self._delete_current_student,
+        ).grid(row=2, column=0, sticky="ew", pady=(8, 0))
+
+        # Chart frame
         right.grid_rowconfigure(2, weight=1)
-        self._student_chart_frame = ctk.CTkFrame(right, fg_color='#1E1E1E')
-        self._student_chart_frame.grid(row=2, column=0, sticky='nsew', padx=8, pady=(8,0))
+        self._student_chart_frame = ctk.CTkFrame(right, fg_color=theme.BG_SURFACE)
+        self._student_chart_frame.grid(row=2, column=0, sticky="nsew", padx=4, pady=(8, 0))
 
     def _back_to_level1(self) -> None:
         self.level2.grid_remove()
         self.level1.grid()
+
+    def _delete_current_student(self) -> None:
+        sid = getattr(self, "_selected_student_id", None)
+        if not sid:
+            return
+        profile = {}
+        try:
+            profile = get_student_profile(sid) or {}
+        except Exception:
+            profile = {}
+        name = self._format_profile_name(profile) or str(sid)
+        self._confirm_soft_delete(sid, name)
 
     def _load_student_history(self, student_id: str, start_date: date, end_date: date) -> None:
         try:
@@ -805,49 +1074,132 @@ class ClassHubPage(ctk.CTkFrame):
                     filtered.append(r)
             except Exception:
                 continue
-        # render
+        # render (rows)
         for w in list(self._student_scroll.children.values()):
             try:
                 w.destroy()
             except Exception:
                 pass
-        headers = ['Date', 'Time', 'Status']
+
+        # header row inside scroll (kept for compatibility)
+        headers = ["Date", "Time", "Status"]
         for col, h in enumerate(headers):
-            ctk.CTkLabel(self._student_scroll, text=h, text_color='#888888', font=ctk.CTkFont(size=12, weight='bold')).grid(row=0, column=col, sticky='w', padx=8, pady=6)
+            ctk.CTkLabel(
+                self._student_scroll,
+                text=h,
+                text_color=theme.TEXT_SECONDARY,
+                font=ctk.CTkFont(size=12, weight="bold"),
+            ).grid(row=0, column=col, sticky="w", padx=8, pady=6)
+
         present = late = absent = 0
         dates = []
         status_map = {}
-        for idx, r in enumerate(sorted(filtered, key=lambda x: x.get('date') or ''), start=1):
-            d = r.get('date')
-            t = str(r.get('time', ''))[:8]
-            st = str(r.get('status', '')).lower()
-            if st == 'present':
+
+        # ensure column weights on scroll
+        try:
+            self._student_scroll.grid_columnconfigure(0, weight=2)
+            self._student_scroll.grid_columnconfigure(1, weight=1)
+            self._student_scroll.grid_columnconfigure(2, weight=1)
+        except Exception:
+            pass
+
+        for idx, r in enumerate(sorted(filtered, key=lambda x: x.get("date") or ""), start=1):
+            d = r.get("date")
+            # normalize date object
+            try:
+                if isinstance(d, str):
+                    d_obj = datetime.fromisoformat(d).date()
+                else:
+                    d_obj = d
+            except Exception:
+                d_obj = d
+
+            date_text = d_obj.strftime("%d %b %Y") if hasattr(d_obj, "strftime") else str(d_obj)
+            t_raw = str(r.get("time", ""))
+            time_text = t_raw[:5]
+
+            st = str(r.get("status", "")).lower()
+            if st == "present":
                 present += 1
-            elif st == 'late':
+            elif st == "late":
                 late += 1
             else:
                 absent += 1
-            fg = _STATUS_COLORS.get(st, 'white')
-            bg = '#1E1E1E' if idx % 2 == 1 else '#252525'
-            ctk.CTkLabel(self._student_scroll, text=str(d), text_color='white', fg_color=bg, corner_radius=4).grid(row=idx, column=0, sticky='w', padx=8, pady=2, ipadx=6, ipady=6)
-            ctk.CTkLabel(self._student_scroll, text=t, text_color='white', fg_color=bg, corner_radius=4).grid(row=idx, column=1, sticky='w', padx=8, pady=2, ipadx=6, ipady=6)
-            ctk.CTkLabel(self._student_scroll, text=st.capitalize() if st else '-', text_color=fg, fg_color=bg, corner_radius=4).grid(row=idx, column=2, sticky='w', padx=8, pady=2, ipadx=6, ipady=6)
+
+            # row background alternation
+            row_bg = theme.BG_ROW_ODD if idx % 2 == 1 else theme.BG_ROW_EVEN
+
+            # Date cell
+            ctk.CTkLabel(
+                self._student_scroll,
+                text=date_text,
+                font=ctk.CTkFont(size=12),
+                text_color=theme.TEXT_PRIMARY,
+                fg_color=row_bg,
+                corner_radius=4,
+            ).grid(row=idx, column=0, sticky="ew", padx=8, pady=4)
+
+            # Time cell
+            ctk.CTkLabel(
+                self._student_scroll,
+                text=time_text,
+                font=ctk.CTkFont(size=12),
+                text_color=theme.TEXT_MUTED,
+                fg_color=row_bg,
+                corner_radius=4,
+            ).grid(row=idx, column=1, sticky="ew", padx=8, pady=4)
+
+            # Status badge
+            badge_text = st.capitalize() if st else "-"
+            if st == "present":
+                badge_bg = "#1A3D2B"
+                badge_fg = "#57C46D"
+            elif st == "late":
+                badge_bg = "#3D3010"
+                badge_fg = "#F4C542"
+            else:
+                badge_bg = "#3D1A1A"
+                badge_fg = "#FF6B6B"
+
+            lbl = ctk.CTkLabel(
+                self._student_scroll,
+                text=badge_text,
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color=badge_fg,
+                fg_color=badge_bg,
+                corner_radius=4,
+            )
+            lbl.grid(row=idx, column=2, sticky="ew", padx=10, pady=4, ipadx=6, ipady=3)
+
             try:
-                dd = r.get('date')
-                if isinstance(dd, str):
-                    dd = datetime.fromisoformat(dd).date()
-                dates.append(dd)
-                status_map[dd] = st
+                if hasattr(d_obj, "date"):
+                    dates.append(d_obj)
+                    status_map[d_obj] = st
+                else:
+                    dates.append(d_obj)
+                    status_map[d_obj] = st
             except Exception:
                 pass
+
         total = present + late + absent
         pct = int((present / total) * 100) if total > 0 else 0
-        pct_color = '#57C46D' if pct > 75 else ('#F4C542' if pct >= 60 else '#FF6B6B')
+        pct_color = "#57C46D" if pct > 75 else ("#F4C542" if pct >= 60 else "#FF6B6B")
+
+        # update summary (big numbers)
         try:
-            self._present_label.configure(text=f'Present: {present}')
-            self._late_label.configure(text=f'Late: {late}')
-            self._absent_label.configure(text=f'Absent: {absent}')
-            self._pct_label.configure(text=f'Attendance: {pct}%', text_color=pct_color)
+            self._present_count_lbl.configure(text=str(present))
+            self._late_count_lbl.configure(text=str(late))
+            self._absent_count_lbl.configure(text=str(absent))
+            self._pct_count_lbl.configure(text=f"{pct}%", text_color=pct_color)
+        except Exception:
+            pass
+
+        # keep backward-compatible small labels
+        try:
+            self._present_label.configure(text=f"Present: {present}")
+            self._late_label.configure(text=f"Late: {late}")
+            self._absent_label.configure(text=f"Absent: {absent}")
+            self._pct_label.configure(text=f"Attendance: {pct}%", text_color=pct_color)
         except Exception:
             pass
         # chart
@@ -911,6 +1263,11 @@ class ClassHubPage(ctk.CTkFrame):
     def _open_student_detail(self, student_id: str) -> None:
         """Open level 2 for a student and load their details."""
         self._selected_student_id = student_id
+        # remember last student for history/filters
+        try:
+            self._last_student_id = student_id
+        except Exception:
+            pass
         # switch to level 2
         try:
             self._show_level(2)
@@ -924,6 +1281,16 @@ class ClassHubPage(ctk.CTkFrame):
                 pass
         # populate details
         self._load_student_detail(student_id)
+        # update level2 title with student name from DB
+        try:
+            profile = get_student_profile(student_id) or {}
+            name = self._format_profile_name(profile) or str(profile.get('name') or student_id)
+            self.level2_title.configure(text=name)
+        except Exception:
+            try:
+                self.level2_title.configure(text=str(student_id))
+            except Exception:
+                pass
 
     def _load_student_detail(self, student_id: str) -> None:
         """Fetch student profile and populate Level 2 widgets (name, photo, history)."""
@@ -932,56 +1299,92 @@ class ClassHubPage(ctk.CTkFrame):
         except Exception:
             profile = {}
 
-        # Name and meta
+        # Name
         try:
             name = self._format_profile_name(profile) or str(profile.get('name') or student_id)
         except Exception:
             name = str(profile.get('name') or student_id)
+
+        # Header labels (name + ID centered above divider)
         try:
             self._profile_name_lbl.configure(text=name)
             self._profile_id_lbl.configure(text=f"Student ID: {student_id}")
-            self._profile_class_lbl.configure(text=f"Class: {profile.get('class_id')}")
         except Exception:
             pass
 
-        # Photo: try PIL if available, else show initials
+        # Detail fields
+        try:
+            first_name  = str(profile.get('first_name')  or '—')
+            middle_name = str(profile.get('middle_name') or '—')
+            last_name   = str(profile.get('last_name')   or '—')
+            reg_by      = str(profile.get('registered_by') or '—')
+            reg_raw     = profile.get('registered_date')
+            reg_date    = str(reg_raw)[:10] if reg_raw else '—'
+            cls_id      = profile.get('class_id')
+            cls_data    = self._class_map.get(cls_id) or {}
+            if cls_data:
+                class_label = f"{cls_data.get('name', '')} - {cls_data.get('section', '')}".strip(' -')
+            else:
+                class_label = str(cls_id or '—')
+            self._det_first.configure(text=first_name)
+            self._det_middle.configure(text=middle_name)
+            self._det_last.configure(text=last_name)
+            self._det_class.configure(text=class_label)
+            self._det_reg_by.configure(text=reg_by)
+            self._det_reg_date.configure(text=reg_date)
+        except Exception:
+            pass
+
+        # Profile photo — circular 120×120 or initials fallback
+        _PHOTO_SIZE = 120
         img_obj = None
         try:
-            from PIL import Image, ImageTk
+            from PIL import Image as _PILImg, ImageDraw as _PILDraw
+            raw = profile.get('profile_photo') or profile.get('photo')
             img_source = None
-            if profile.get('photo'):
-                raw = profile.get('photo')
-                if isinstance(raw, (bytes, bytearray)):
-                    img_source = io.BytesIO(raw)
-            elif profile.get('photo_path'):
-                img_source = profile.get('photo_path')
+            if isinstance(raw, (bytes, bytearray)):
+                img_source = io.BytesIO(raw)
+            elif isinstance(raw, str) and raw:
+                img_source = raw
             if img_source:
-                try:
-                    img = Image.open(img_source).convert('RGBA')
-                    img = img.resize((120, 120))
-                    img_obj = ImageTk.PhotoImage(img)
-                except Exception:
-                    img_obj = None
+                base = _PILImg.open(img_source).convert('RGBA')
+                w_, h_ = base.size
+                side = min(w_, h_)
+                base = base.crop(
+                    ((w_ - side) // 2, (h_ - side) // 2,
+                     (w_ + side) // 2, (h_ + side) // 2)
+                )
+                base = base.resize((_PHOTO_SIZE, _PHOTO_SIZE), _PILImg.LANCZOS)
+                mask = _PILImg.new('L', (_PHOTO_SIZE, _PHOTO_SIZE), 0)
+                _PILDraw.Draw(mask).ellipse((0, 0, _PHOTO_SIZE, _PHOTO_SIZE), fill=255)
+                circle = _PILImg.new('RGBA', (_PHOTO_SIZE, _PHOTO_SIZE), (0, 0, 0, 0))
+                circle.paste(base, mask=mask)
+                img_obj = ctk.CTkImage(
+                    light_image=circle, dark_image=circle,
+                    size=(_PHOTO_SIZE, _PHOTO_SIZE),
+                )
         except Exception:
             img_obj = None
 
         try:
-            # clear existing photo area
             for w in list(self._profile_photo_frame.children.values()):
                 try:
                     w.destroy()
                 except Exception:
                     pass
             if img_obj:
-                # keep reference
                 self._profile_photo_image = img_obj
-                lbl = ctk.CTkLabel(self._profile_photo_frame, image=img_obj, text='')
-                lbl.grid(row=0, column=0, padx=8, pady=8)
+                lbl = ctk.CTkLabel(self._profile_photo_frame, image=img_obj, text="", fg_color="transparent")
+                lbl.grid(row=0, column=0)
                 self._profile_photo_label = lbl
             else:
-                initials = ''.join([p[0].upper() for p in name.split() if p])[:2] or '?'
-                lbl = ctk.CTkLabel(self._profile_photo_frame, text=initials, font=ctk.CTkFont(size=40, weight='bold'))
-                lbl.grid(row=0, column=0, padx=8, pady=8)
+                initials = ''.join(p[0].upper() for p in name.split() if p)[:2] or '?'
+                lbl = ctk.CTkLabel(
+                    self._profile_photo_frame, text=initials,
+                    font=ctk.CTkFont(size=36, weight="bold"),
+                    text_color=theme.TEXT_SECONDARY,
+                )
+                lbl.grid(row=0, column=0)
                 self._profile_photo_label = lbl
         except Exception:
             pass

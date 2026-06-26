@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import customtkinter as ctk
-
 from core.database import add_admin, delete_admin, get_all_admins, log_action
+from gui import theme
+from gui.widgets import ThemedDropdown
 
 
 class AdminPage(ctk.CTkFrame):
@@ -15,13 +16,17 @@ class AdminPage(ctk.CTkFrame):
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
-        header = ctk.CTkFrame(self, fg_color="#1A1A1A", corner_radius=0, height=60)
+
+        header = ctk.CTkFrame(self, fg_color=theme.BG_SURFACE, corner_radius=0, height=60)
         header.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
-        ctk.CTkLabel(header, text="Admin Management", font=ctk.CTkFont(size=20, weight="bold"), text_color="white").pack(side="left", padx=20, pady=15)
+        ctk.CTkLabel(header, text="Admin Management", font=ctk.CTkFont(size=20, weight="bold"), text_color=theme.TEXT_PRIMARY).pack(side="left", padx=20, pady=15)
+
         body = ctk.CTkFrame(self, fg_color="transparent")
         body.grid(row=1, column=0, sticky="nsew")
-        body.grid_columnconfigure(0, weight=1)
-        body.grid_rowconfigure(0, weight=1)
+        body.grid_columnconfigure(0, weight=1)           # left fluid margin
+        body.grid_columnconfigure(1, weight=0, minsize=500)  # centered form column
+        body.grid_columnconfigure(2, weight=1)           # right fluid margin
+        body.grid_rowconfigure(1, weight=1)              # table row expands
 
         self._build_add_form(body)
         self._build_table(body)
@@ -29,59 +34,89 @@ class AdminPage(ctk.CTkFrame):
         self.refresh()
 
     def _build_add_form(self, parent) -> None:
-        form_card = ctk.CTkFrame(parent, fg_color="#1A1A1A", corner_radius=14)
-        form_card.grid(row=0, column=0, sticky="ew", padx=20, pady=(20, 14))
-        form_card.grid_columnconfigure(1, weight=1)
-        form_card.grid_columnconfigure(3, weight=1)
+        form = ctk.CTkFrame(parent, fg_color=theme.BG_SURFACE, corner_radius=16)
+        form.grid(row=0, column=1, sticky="new", pady=24)
+        form.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
-            form_card,
-            text="Add Admin",
-            font=ctk.CTkFont(size=18, weight="bold"),
-            text_color="white",
-        ).grid(row=0, column=0, columnspan=5, sticky="w", padx=18, pady=(16, 12))
-
-        ctk.CTkLabel(form_card, text="Username", text_color="#888888").grid(row=1, column=0, sticky="w", padx=(18, 8), pady=(0, 8))
-        self.username_entry = ctk.CTkEntry(form_card, height=38, placeholder_text="Enter username")
-        self.username_entry.grid(row=1, column=1, sticky="ew", padx=(0, 16), pady=(0, 8))
-
-        ctk.CTkLabel(form_card, text="Password", text_color="#888888").grid(row=1, column=2, sticky="w", padx=(0, 8), pady=(0, 8))
-        self.password_entry = ctk.CTkEntry(form_card, height=38, placeholder_text="Enter password", show="*")
-        self.password_entry.grid(row=1, column=3, sticky="ew", padx=(0, 16), pady=(0, 8))
-
-        # Role label moved to second row to align with its option menu
-        ctk.CTkLabel(form_card, text="Role", text_color="#888888").grid(row=2, column=2, sticky="w", padx=(0, 8), pady=(0, 16))
-
-        ctk.CTkLabel(form_card, text="Confirm Password", text_color="#888888").grid(row=2, column=0, sticky="w", padx=(18, 8), pady=(0, 16))
-        self.confirm_password_entry = ctk.CTkEntry(form_card, height=38, placeholder_text="Confirm password", show="*")
-        self.confirm_password_entry.grid(row=2, column=1, sticky="ew", padx=(0, 16), pady=(0, 16))
-
-        self.role_option = ctk.CTkOptionMenu(
-            form_card,
-            values=["admin", "superadmin"],
-            fg_color="#1F1F1F",
-            button_color="#1E88E5",
-            button_hover_color="#1565C0",
-            width=160,
+            form,
+            text="Username",
+            font=ctk.CTkFont(size=15, weight="bold"),
+            text_color=theme.TEXT_PRIMARY,
+        ).grid(row=0, column=0, sticky="w", padx=22, pady=(14, 4))
+        self.username_entry = ctk.CTkEntry(
+            form,
+            height=36,
+            placeholder_text="Enter username",
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=6,
         )
-        self.role_option.set("admin")
-        # place option menu beside the Role label in the same row
-        self.role_option.grid(row=2, column=3, sticky="w", padx=(0, 18), pady=(0, 16))
+        self.username_entry.grid(row=1, column=0, sticky="ew", padx=22, pady=(0, 10))
+
+        ctk.CTkLabel(
+            form,
+            text="Password",
+            font=ctk.CTkFont(size=15, weight="bold"),
+            text_color=theme.TEXT_PRIMARY,
+        ).grid(row=2, column=0, sticky="w", padx=22, pady=(0, 4))
+        self.password_entry = ctk.CTkEntry(
+            form,
+            height=36,
+            placeholder_text="Enter password",
+            show="*",
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=6,
+        )
+        self.password_entry.grid(row=3, column=0, sticky="ew", padx=22, pady=(0, 10))
+
+        ctk.CTkLabel(
+            form,
+            text="Confirm Password",
+            font=ctk.CTkFont(size=15, weight="bold"),
+            text_color=theme.TEXT_PRIMARY,
+        ).grid(row=4, column=0, sticky="w", padx=22, pady=(0, 4))
+        self.confirm_password_entry = ctk.CTkEntry(
+            form,
+            height=36,
+            placeholder_text="Confirm password",
+            show="*",
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=6,
+        )
+        self.confirm_password_entry.grid(row=5, column=0, sticky="ew", padx=22, pady=(0, 10))
+
+        ctk.CTkLabel(
+            form,
+            text="Role",
+            font=ctk.CTkFont(size=15, weight="bold"),
+            text_color=theme.TEXT_PRIMARY,
+        ).grid(row=6, column=0, sticky="w", padx=22, pady=(0, 4))
+        self.role_option = ThemedDropdown(form, values=["admin", "superadmin"], height=36)
+        self.role_option.grid(row=7, column=0, sticky="ew", padx=22, pady=(0, 10))
 
         self.add_admin_button = ctk.CTkButton(
-            form_card,
+            form,
             text="Add Admin",
             command=self._handle_add_admin,
-            fg_color="#1E88E5",
-            hover_color="#1565C0",
-            height=40,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color=theme.ACCENT,
+            hover_color=theme.ACCENT_HOVER,
+            height=36,
+            font=ctk.CTkFont(size=15, weight="bold"),
         )
-        self.add_admin_button.grid(row=3, column=0, columnspan=5, sticky="ew", padx=18, pady=(0, 18))
+        self.add_admin_button.grid(row=8, column=0, sticky="ew", padx=22, pady=(0, 14))
 
     def _build_table(self, parent) -> None:
-        card = ctk.CTkFrame(parent, fg_color="#1A1A1A", corner_radius=14)
-        card.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 20))
+        card = ctk.CTkFrame(parent, fg_color=theme.BG_SURFACE, corner_radius=10)
+        card.grid(row=1, column=0, columnspan=3, sticky="nsew", padx=20, pady=(0, 20))
         card.grid_columnconfigure(0, weight=1)
         card.grid_rowconfigure(1, weight=1)
 
@@ -89,38 +124,46 @@ class AdminPage(ctk.CTkFrame):
             card,
             text="0 admins",
             font=ctk.CTkFont(size=13),
-            text_color="#888888",
+            text_color=theme.TEXT_SECONDARY,
         )
         self.count_label.grid(row=0, column=0, sticky="w", padx=16, pady=(12, 8))
 
         self.table_scroll = ctk.CTkScrollableFrame(card, fg_color="transparent")
         self.table_scroll.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
 
-        headers = ["Username", "Role", "Created By", "Created Date", "Actions"]
+        headers = ["Username", "Role", "Created By", "Created Date", "Delete"]
         weights = [2, 1, 2, 2, 1]
         for col, weight in enumerate(weights):
             self.table_scroll.grid_columnconfigure(col, weight=weight)
+
         for col, header in enumerate(headers):
             ctk.CTkLabel(
                 self.table_scroll,
                 text=header,
                 font=ctk.CTkFont(size=12, weight="bold"),
-                text_color="#888888",
+                text_color=theme.TEXT_SECONDARY,
                 anchor="w",
             ).grid(row=0, column=col, sticky="ew", padx=(10, 6), pady=(0, 6))
 
         self.empty_label = ctk.CTkLabel(
             self.table_scroll,
             text="No admin accounts found.",
-            text_color="#888888",
+            text_color=theme.TEXT_SECONDARY,
             font=ctk.CTkFont(size=13),
         )
 
     def _notify(self, message: str, kind: str) -> None:
-        if hasattr(self.app, "show_notification"):
-            self.app.show_notification(message, kind)
-        elif hasattr(self.app, "notifications") and hasattr(self.app.notifications, "show"):
-            self.app.notifications.show(message, kind=kind)
+        if hasattr(self.master_frame, "show_notification"):
+            try:
+                self.master_frame.show_notification(message, kind)
+                return
+            except Exception:
+                pass
+        if hasattr(self.master_frame, "notifications") and hasattr(self.master_frame.notifications, "show"):
+            try:
+                self.master_frame.notifications.show(message, kind=kind)
+            except Exception:
+                pass
 
     def _is_superadmin(self) -> bool:
         return self.role == "superadmin"
@@ -152,16 +195,17 @@ class AdminPage(ctk.CTkFrame):
             result["ok"] = True
             dialog.destroy()
 
-        card = ctk.CTkFrame(dialog, fg_color="#1E1E1E", corner_radius=0)
-        card.pack(fill="both", expand=True, padx=8, pady=8)
-        ctk.CTkLabel(card, text="Delete Admin", font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", padx=18, pady=(16, 8))
+        card = ctk.CTkFrame(dialog, fg_color=theme.BG_SURFACE, corner_radius=0)
+        card.pack(fill="both", expand=True, padx=18, pady=18)
+
         ctk.CTkLabel(
             card,
             text=f"Delete admin account '{username}'?",
             justify="left",
             wraplength=380,
-            text_color="#D0D0D0",
+            text_color=theme.TEXT_SECONDARY,
         ).pack(anchor="w", padx=18, pady=(0, 16))
+
         actions = ctk.CTkFrame(card, fg_color="transparent")
         actions.pack(fill="x", padx=18, pady=(0, 16))
         ctk.CTkButton(actions, text="Cancel", command=dialog.destroy, corner_radius=6).pack(side="left")
@@ -169,8 +213,8 @@ class AdminPage(ctk.CTkFrame):
             actions,
             text="Delete",
             command=confirm,
-            fg_color="#C62828",
-            hover_color="#A51F1F",
+            fg_color=theme.BTN_DANGER,
+            hover_color=theme.BTN_DANGER_HVR,
             corner_radius=6,
         ).pack(side="right")
 
@@ -185,7 +229,7 @@ class AdminPage(ctk.CTkFrame):
         username = self.username_entry.get().strip()
         password = self.password_entry.get()
         confirm_password = self.confirm_password_entry.get()
-        role = self.role_option.get().strip().lower()
+        role = self.role_option.get()
 
         if not username or not password or not confirm_password or not role:
             self._notify("All fields are required.", "error")
@@ -198,9 +242,12 @@ class AdminPage(ctk.CTkFrame):
         try:
             existing_admins = get_all_admins()
         except Exception as error:
-            self._notify("Failed to load admins.", "error")
+            self._notify("Unable to validate admin username.", "error")
             if hasattr(self.master_frame, "show_action_error"):
-                self.master_frame.show_action_error("Admin Management", "Unable to validate admin username.", error)
+                try:
+                    self.master_frame.show_action_error("Admin Management", "Unable to validate admin username.", error)
+                except Exception:
+                    pass
             return
 
         existing_usernames = {str(admin.get("username", "")).strip().lower() for admin in existing_admins}
@@ -214,7 +261,10 @@ class AdminPage(ctk.CTkFrame):
         except Exception as error:
             self._notify("Failed to create admin.", "error")
             if hasattr(self.master_frame, "show_action_error"):
-                self.master_frame.show_action_error("Admin Management", "Unable to create admin account.", error)
+                try:
+                    self.master_frame.show_action_error("Admin Management", "Unable to create admin account.", error)
+                except Exception:
+                    pass
             return
 
         self.username_entry.delete(0, "end")
@@ -242,7 +292,10 @@ class AdminPage(ctk.CTkFrame):
         except Exception as error:
             self._notify("Failed to delete admin.", "error")
             if hasattr(self.master_frame, "show_action_error"):
-                self.master_frame.show_action_error("Admin Management", "Unable to delete admin account.", error)
+                try:
+                    self.master_frame.show_action_error("Admin Management", "Unable to delete admin account.", error)
+                except Exception:
+                    pass
             return
 
         self.refresh()
@@ -301,7 +354,10 @@ class AdminPage(ctk.CTkFrame):
         except Exception as error:
             self._notify("Failed to load admins.", "error")
             if hasattr(self.master_frame, "show_action_error"):
-                self.master_frame.show_action_error("Admin Management", "Unable to load admin accounts.", error)
+                try:
+                    self.master_frame.show_action_error("Admin Management", "Unable to load admin accounts.", error)
+                except Exception:
+                    pass
             return
 
         self._set_controls_enabled(self._is_superadmin())

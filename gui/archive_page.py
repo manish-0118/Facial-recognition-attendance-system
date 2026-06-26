@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import customtkinter as ctk
+from gui import theme
 
 from core.database import (
     get_all_classes,
@@ -31,15 +32,15 @@ class ArchivePage(ctk.CTkFrame):
         title_row = ctk.CTkFrame(container, fg_color="transparent")
         title_row.grid(row=0, column=0, sticky="ew", padx=24, pady=(20, 20))
         title_row.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(title_row, text="Archived Students", font=ctk.CTkFont(size=18, weight="bold"), text_color="white").grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(title_row, text="Archived Students", font=ctk.CTkFont(size=18, weight="bold"), text_color=theme.TEXT_PRIMARY).grid(row=0, column=0, sticky="w")
         self.count_label = ctk.CTkLabel(title_row, text="0 archived students", font=ctk.CTkFont(size=13), text_color="#888888")
         self.count_label.grid(row=1, column=0, sticky="w", pady=(4, 0))
         ctk.CTkButton(
             title_row,
             text="Refresh",
             command=self.refresh,
-            fg_color="#1E88E5",
-            hover_color="#1565C0",
+            fg_color=theme.ACCENT,
+            hover_color=theme.ACCENT_HOVER,
             width=120,
         ).grid(row=0, column=1, rowspan=2, sticky="e")
 
@@ -82,7 +83,7 @@ class ArchivePage(ctk.CTkFrame):
 
     def _build_table(self, parent) -> None:
         # table card
-        card = ctk.CTkFrame(parent, fg_color="#1E1E1E", corner_radius=12)
+        card = ctk.CTkFrame(parent, fg_color=theme.BG_SURFACE, corner_radius=12)
         card.grid(row=0, column=0, sticky="nsew", padx=24, pady=(0, 20))
         card.grid_columnconfigure(0, weight=1)
         card.grid_rowconfigure(0, weight=1)
@@ -104,14 +105,14 @@ class ArchivePage(ctk.CTkFrame):
                 self.table_frame,
                 text=header,
                 font=ctk.CTkFont(size=13, weight="bold"),
-                text_color="#888888",
+                text_color=theme.TEXT_SECONDARY,
                 anchor="w",
             ).grid(row=0, column=col, sticky="ew", padx=(10, 6), pady=(0, 6))
 
         self.empty_label = ctk.CTkLabel(
             self.table_frame,
             text="No archived students",
-            text_color="#888888",
+            text_color=theme.TEXT_SECONDARY,
             font=ctk.CTkFont(size=13),
         )
 
@@ -161,11 +162,11 @@ class ArchivePage(ctk.CTkFrame):
             result["ok"] = True
             dialog.destroy()
 
-        card = ctk.CTkFrame(dialog, fg_color="#1E1E1E", corner_radius=0)
+        card = ctk.CTkFrame(dialog, fg_color=theme.BG_SURFACE, corner_radius=0)
         card.pack(fill="both", expand=True, padx=8, pady=8)
 
         ctk.CTkLabel(card, text=title, font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", padx=18, pady=(16, 8))
-        ctk.CTkLabel(card, text=message, justify="left", wraplength=380, text_color="#D0D0D0").pack(anchor="w", padx=18, pady=(0, 16))
+        ctk.CTkLabel(card, text=message, justify="left", wraplength=380, text_color=theme.TEXT_SECONDARY).pack(anchor="w", padx=18, pady=(0, 16))
 
         actions = ctk.CTkFrame(card, fg_color="transparent")
         actions.pack(fill="x", padx=18, pady=(0, 16))
@@ -237,7 +238,18 @@ class ArchivePage(ctk.CTkFrame):
         pw_label.pack(anchor="w", padx=18, pady=(0, 6))
 
         pw_var = ctk.StringVar()
-        pw_entry = ctk.CTkEntry(card, textvariable=pw_var, show="*", width=420)
+        pw_entry = ctk.CTkEntry(
+            card,
+            textvariable=pw_var,
+            show="*",
+            width=420,
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=6,
+            height=42,
+        )
         pw_entry.pack(anchor="w", padx=18)
 
         actions = ctk.CTkFrame(card, fg_color="transparent")
@@ -305,7 +317,7 @@ class ArchivePage(ctk.CTkFrame):
             return
 
         for idx, row in enumerate(rows, start=1):
-            bg = "#1A1A1A" if idx % 2 else "#202020"
+            bg = theme.BG_ROW_ODD if idx % 2 else theme.BG_ROW_EVEN
             values = [
                 str(row.get("student_id", "-")),
                 self._display_name(row),
@@ -319,7 +331,7 @@ class ArchivePage(ctk.CTkFrame):
                     self.table_frame,
                     text=value,
                     font=ctk.CTkFont(size=13),
-                    text_color="white",
+                    text_color=theme.TEXT_PRIMARY,
                     fg_color=bg,
                     anchor="w",
                     corner_radius=4,
@@ -338,8 +350,8 @@ class ArchivePage(ctk.CTkFrame):
                 actions,
                 text="Restore",
                 command=lambda sid=student_id, name=student_name: self._handle_restore(sid, name),
-                fg_color="#1E88E5",
-                hover_color="#1565C0",
+                fg_color=theme.ACCENT,
+                hover_color=theme.ACCENT_HOVER,
                 width=90,
                 height=30,
                 corner_radius=6,
@@ -352,8 +364,8 @@ class ArchivePage(ctk.CTkFrame):
                     actions,
                     text="Delete Permanently",
                     command=lambda sid=student_id, name=student_name: self._handle_permanent_delete(sid, name),
-                    fg_color="#C62828",
-                    hover_color="#A51F1F",
+                    fg_color=theme.BTN_DANGER,
+                    hover_color=theme.BTN_DANGER_HVR,
                     width=150,
                     height=30,
                     corner_radius=6,

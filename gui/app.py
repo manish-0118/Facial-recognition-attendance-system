@@ -18,6 +18,8 @@ from .dashboard_page import DashboardPage
 from .register_page import RegisterPage
 from .class_hub_page import ClassHubPage
 from gui.settings_page import SettingsPage
+from gui import theme
+from gui.widgets import AutoScrollFrame
 
 
 WINDOW_TITLE = "Biometric Attendance System"
@@ -48,7 +50,7 @@ class _NotificationProxy:
 
 class App(ctk.CTk):
     def __init__(self) -> None:
-        ctk.set_appearance_mode("dark")
+        ctk.set_appearance_mode(theme.CTK_MODE)
         ctk.set_default_color_theme("dark-blue")
 
         init_db()
@@ -124,7 +126,7 @@ class App(ctk.CTk):
     def _build_sidebar(self):
         if self.sidebar:
             self.sidebar.destroy()  # Ensure no duplicate sidebars
-        self.sidebar = ctk.CTkFrame(self, width=SIDEBAR_WIDTH, fg_color="#0F0F0F")
+        self.sidebar = ctk.CTkFrame(self, width=SIDEBAR_WIDTH, fg_color=theme.SIDEBAR_BG)
         self.sidebar.grid(row=0, column=0, sticky="ns")  # Ensure it occupies the correct grid
         self.sidebar.grid_propagate(False)
 
@@ -141,7 +143,7 @@ class App(ctk.CTk):
             self.sidebar,
             text="Attendance System",
             font=ctk.CTkFont(size=11),
-            text_color="#888888",
+            text_color=theme.TEXT_SECONDARY,
             anchor="w",
         ).pack(fill="x", padx=20, pady=(0, 8))
 
@@ -165,17 +167,14 @@ class App(ctk.CTk):
 
         for item in nav_items:
             em = emoji_map.get(item)
-            if em:
-                label = f"{em} {item}"
-            else:
-                label = item
+            label = f"{em} {item}" if em else item
             btn = ctk.CTkButton(
                 self.sidebar,
                 text=label,
                 command=lambda i=item: self.show_page(i),
                 fg_color="transparent",
-                hover_color="#2A2A2A",
-                text_color="white",
+                hover_color=theme.SIDEBAR_HOVER,
+                text_color=theme.TEXT_PRIMARY,
                 corner_radius=6,
                 height=40,
                 font=ctk.CTkFont(family="Segoe UI Emoji", size=15),
@@ -186,7 +185,7 @@ class App(ctk.CTk):
             btn.pack(fill="x", padx=20, pady=4)
             self._nav_buttons[item] = btn
         # separator above logout
-        sep = ctk.CTkFrame(self.sidebar, height=1, fg_color="#333333")
+        sep = ctk.CTkFrame(self.sidebar, height=1, fg_color=theme.BORDER)
         sep.pack(side="bottom", fill="x", padx=20, pady=(8, 4))
 
         # logout at bottom with subtle style
@@ -197,9 +196,9 @@ class App(ctk.CTk):
             logout_frame,
             text="Logout",
             command=self._show_logout_confirm,
-            fg_color="transparent",
-            hover_color="#2A2A2A",
-            text_color="#FF5252",
+            fg_color=theme.BTN_DANGER,
+            hover_color=theme.BTN_DANGER_HVR,
+            text_color=theme.TEXT_PRIMARY,
             corner_radius=6,
             height=36,
             border_width=0,
@@ -220,15 +219,15 @@ class App(ctk.CTk):
 
     def _update_active_nav(self, active_name: str) -> None:
         for name, btn in getattr(self, "_nav_buttons", {}).items():
-            if name == active_name:
-                btn.configure(fg_color="#1E88E5")
-            else:
-                btn.configure(fg_color="transparent")
+                if name == active_name:
+                    btn.configure(fg_color=theme.SIDEBAR_ACTIVE)
+                else:
+                    btn.configure(fg_color="transparent")
 
     def _build_content_frame(self):
         if self.content_frame:
             self.content_frame.destroy()
-        self.content_frame = ctk.CTkFrame(self, fg_color="#141414")
+        self.content_frame = ctk.CTkFrame(self, fg_color=theme.BG_ROOT)
         self.content_frame.grid(row=0, column=1, sticky="nsew")
         self.content_frame.grid_columnconfigure(0, weight=1)
         self.content_frame.grid_rowconfigure(0, weight=1)
@@ -263,25 +262,25 @@ class App(ctk.CTk):
         ctk.CTkButton(
             btn_frame,
             text="Yes, Logout",
-            fg_color="#C62828",
-            hover_color="#A51F1F",
-            text_color="white",
+            fg_color=theme.BTN_DANGER,
+            hover_color=theme.DANGER_HOVER,
+            text_color=theme.TEXT_PRIMARY,
             command=_do_logout,
         ).pack(side="left", expand=True, fill="x", padx=(0, 8))
 
         ctk.CTkButton(
             btn_frame,
             text="Cancel",
-            fg_color="#9E9E9E",
-            hover_color="#8E8E8E",
-            text_color="white",
+            fg_color=theme.BTN_SECONDARY,
+            hover_color=theme.BTN_SECONDARY_HVR,
+            text_color=theme.TEXT_PRIMARY,
             command=dlg.destroy,
         ).pack(side="left", expand=True, fill="x")
 
     def show_page(self, page_name: str):
-        if self._current_page:
+        if self._current_page is not None:
             try:
-                self._current_page.grid_forget()
+                self._current_page.destroy()
             except Exception:
                 pass
             self._current_page = None
@@ -289,7 +288,7 @@ class App(ctk.CTk):
         page_classes = {
             "Dashboard": DashboardPage,
             "Classes": ClassHubPage,
-            "Register Student": RegisterPage,  # Added Register Student navigation item
+            "Register Student": RegisterPage,
             "Take Attendance": AttendancePage,
             "Export": ExportPage,
             "Archive": ArchivePage,
@@ -300,13 +299,19 @@ class App(ctk.CTk):
         page_class = page_classes.get(page_name)
         if page_class:
             try:
-                # None of the current pages require the on_navigate callback
-                self._current_page = page_class(
-                    self.content_frame,
+                wrapper = AutoScrollFrame(self.content_frame)
+                wrapper.grid(row=0, column=0, sticky="nsew")
+                wrapper.inner.grid_rowconfigure(0, weight=1)
+                wrapper.inner.grid_columnconfigure(0, weight=1)
+
+                page = page_class(
+                    wrapper.inner,
                     username=self.logged_in_username,
                     role=self.logged_in_role,
                 )
-                self._current_page.grid(row=0, column=0, sticky="nsew")
+                page.grid(row=0, column=0, sticky="nsew")
+
+                self._current_page = wrapper
                 try:
                     self._update_active_nav(page_name)
                 except Exception:
@@ -317,7 +322,9 @@ class App(ctk.CTk):
                 )
                 self._current_page.grid(row=0, column=0, sticky="nsew")
         else:
-            self._current_page = ctk.CTkLabel(self.content_frame, text=f"Page '{page_name}' not found.", text_color="white")
+            self._current_page = ctk.CTkLabel(
+                self.content_frame, text=f"Page '{page_name}' not found.", text_color="white"
+            )
             self._current_page.grid(row=0, column=0, sticky="nsew")
 
     def logout(self):
@@ -363,26 +370,27 @@ class App(ctk.CTk):
             self._schedule_timeout_check()
 
 
-def show_notification(self, message: str, kind: str = "success") -> None:
-    if self._toast:
-        try:
-            self._toast.destroy()
-        except Exception:
-            pass
-    color = "#2E7D32" if kind == "success" else "#C62828"
-    toast = ctk.CTkFrame(self, fg_color=color, corner_radius=0)
-    toast.place(relx=1.0, rely=0.0, anchor="ne", x=-10, y=10)
-    ctk.CTkLabel(toast, text=message, text_color="white", padx=12, pady=8).pack()
-    self._toast = toast
-    self.after(3000, self._slide_out_toast)
+    def show_notification(self, message: str, kind: str = "success") -> None:
+        if self._toast:
+            try:
+                self._toast.destroy()
+            except Exception:
+                pass
+        color = theme.SUCCESS_BG if kind == "success" else theme.DANGER_BG
+        toast = ctk.CTkFrame(self, fg_color=color, corner_radius=0)
+        toast.place(relx=1.0, rely=0.0, anchor="ne", x=-10, y=10)
+        ctk.CTkLabel(toast, text=message, text_color="white", padx=12, pady=8).pack()
+        self._toast = toast
+        self.after(3000, self._slide_out_toast)
 
-def _slide_out_toast(self) -> None:
-    if self._toast:
-        try:
-            self._toast.destroy()
-        except Exception:
-            pass
-        self._toast = None
+    def _slide_out_toast(self) -> None:
+        if self._toast:
+            try:
+                self._toast.destroy()
+            except Exception:
+                pass
+            self._toast = None
+
 
 if __name__ == "__main__":
     app = App()

@@ -5,15 +5,15 @@ from pathlib import Path
 from tkinter import filedialog
 
 import customtkinter as ctk
+from gui import theme
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-from tkcalendar import DateEntry
-
 from core.database import get_all_classes, get_attendance_by_date, log_export, verify_admin
+from gui.widgets import ThemedDropdown, ThemedRangePicker, make_eye_image
 
 COLLEGE_NAME = "Nihareeka College of Management and Information Technology"
 STATUS_HEX = {
@@ -43,13 +43,13 @@ class ExportPage(ctk.CTkFrame):
         container.grid(row=0, column=0, sticky="nsew", padx=60, pady=0)
         container.grid_columnconfigure(0, weight=1)
 
-        main_card = ctk.CTkFrame(container, fg_color="#1E1E1E", corner_radius=12)
+        main_card = ctk.CTkFrame(container, fg_color=theme.BG_SURFACE, corner_radius=12)
         main_card.grid(row=0, column=0, sticky="ew", padx=0, pady=(20, 12))
         main_card.grid_columnconfigure(0, weight=1)
 
         # Title inside main card
-        ctk.CTkLabel(main_card, text="Export Reports", font=ctk.CTkFont(size=20, weight="bold"), text_color="white").grid(row=0, column=0, sticky="w", padx=20, pady=(20, 6))
-        ctk.CTkLabel(main_card, text="Set filters and choose an export format.", font=ctk.CTkFont(size=13), text_color="#D0D0D0").grid(row=1, column=0, sticky="w", padx=20, pady=(0, 12))
+        ctk.CTkLabel(main_card, text="Export Reports", font=ctk.CTkFont(size=20, weight="bold"), text_color=theme.TEXT_PRIMARY).grid(row=0, column=0, sticky="w", padx=20, pady=(20, 6))
+        ctk.CTkLabel(main_card, text="Set filters and choose an export format.", font=ctk.CTkFont(size=13), text_color=theme.TEXT_SECONDARY).grid(row=1, column=0, sticky="w", padx=20, pady=(0, 12))
 
         body = ctk.CTkFrame(main_card, fg_color="transparent")
         body.grid(row=2, column=0, sticky="nsew", padx=0, pady=(0, 16))
@@ -62,7 +62,7 @@ class ExportPage(ctk.CTkFrame):
             body,
             text="",
             font=ctk.CTkFont(size=13),
-            text_color="#888888",
+            text_color=theme.TEXT_SECONDARY,
             justify="left",
             wraplength=760,
         )
@@ -71,81 +71,68 @@ class ExportPage(ctk.CTkFrame):
         self.refresh()
 
     def _build_filters(self, parent) -> None:
-        filter_card = ctk.CTkFrame(parent, fg_color="#1E1E1E", corner_radius=12)
+        filter_card = ctk.CTkFrame(parent, fg_color=theme.BG_SURFACE, corner_radius=12)
         filter_card.grid(row=0, column=0, sticky="ew", padx=20, pady=(0, 12))
-        # make columns expand so controls fill the full width
-        for col in range(6):
-            filter_card.grid_columnconfigure(col, weight=0)
-        filter_card.grid_columnconfigure(1, weight=3)
-        filter_card.grid_columnconfigure(3, weight=1)
-        filter_card.grid_columnconfigure(5, weight=1)
+        filter_card.grid_columnconfigure(1, weight=1)
+        filter_card.grid_columnconfigure(3, weight=2)
 
-        ctk.CTkLabel(filter_card, text="Class", font=ctk.CTkFont(size=13), text_color="white").grid(
-            row=0, column=0, sticky="w", padx=(18, 8), pady=(16, 8)
-        )
-        self.class_dropdown = ctk.CTkOptionMenu(
-            filter_card,
-            values=["All Classes"],
-            fg_color="#1F1F1F",
-            button_color="#1E88E5",
-            button_hover_color="#1565C0",
-        )
-        self.class_dropdown.grid(row=0, column=1, sticky="ew", padx=(0, 16), pady=(16, 8))
-        self.class_dropdown.set("All Classes")
+        # Row 0 — Class selector
+        ctk.CTkLabel(
+            filter_card, text="Class",
+            font=ctk.CTkFont(size=13), text_color=theme.TEXT_PRIMARY,
+        ).grid(row=0, column=0, sticky="w", padx=(18, 8), pady=(16, 8))
+        self.class_dropdown = ThemedDropdown(filter_card, values=["Loading…"])
+        self.class_dropdown.grid(row=0, column=1, sticky="ew", padx=(0, 24), pady=(16, 8))
 
-        ctk.CTkLabel(filter_card, text="From", font=ctk.CTkFont(size=13), text_color="white").grid(
-            row=0, column=2, sticky="w", padx=(0, 8), pady=(16, 8)
-        )
-        self.from_date_entry = DateEntry(
+        # Row 0 — Date range picker
+        ctk.CTkLabel(
+            filter_card, text="Date Range",
+            font=ctk.CTkFont(size=13), text_color=theme.TEXT_PRIMARY,
+        ).grid(row=0, column=2, sticky="w", padx=(0, 8), pady=(16, 8))
+        self.range_picker = ThemedRangePicker(
             filter_card,
-            width=12,
-            date_pattern="yyyy-mm-dd",
-            background="#1E88E5",
-            foreground="#FFFFFF",
-            borderwidth=0,
+            initial_from=date.today(),
+            initial_to=date.today(),
         )
-        self.from_date_entry.set_date(date.today())
-        self.from_date_entry.grid(row=0, column=3, sticky="ew", padx=(0, 16), pady=(16, 8))
-
-        ctk.CTkLabel(filter_card, text="To", font=ctk.CTkFont(size=13), text_color="white").grid(
-            row=0, column=4, sticky="w", padx=(0, 8), pady=(16, 8)
-        )
-        self.to_date_entry = DateEntry(
-            filter_card,
-            width=12,
-            date_pattern="yyyy-mm-dd",
-            background="#1E88E5",
-            foreground="#FFFFFF",
-            borderwidth=0,
-        )
-        self.to_date_entry.set_date(date.today())
-        self.to_date_entry.grid(row=0, column=5, sticky="ew", padx=(0, 18), pady=(16, 8))
+        self.range_picker.grid(row=0, column=3, sticky="ew", padx=(0, 18), pady=(10, 8))
 
     def _build_actions(self, parent) -> None:
-        action_card = ctk.CTkFrame(parent, fg_color="#1E1E1E", corner_radius=12)
+        action_card = ctk.CTkFrame(parent, fg_color=theme.BG_SURFACE, corner_radius=12)
         action_card.grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 16))
+        # Centered action buttons with fixed widths, placed side-by-side
         action_card.grid_columnconfigure(0, weight=1)
         action_card.grid_columnconfigure(1, weight=1)
+        btn_frame = ctk.CTkFrame(action_card, fg_color="transparent")
+        btn_frame.grid(row=0, column=0, columnspan=2, pady=16)
+        btn_frame.grid_columnconfigure(0, weight=1)
+        btn_frame.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkButton(
-            action_card,
+        pdf_btn = ctk.CTkButton(
+            btn_frame,
             text="Export PDF",
             command=self.handle_export_pdf,
-            fg_color="#1E88E5",
-            hover_color="#1565C0",
+            fg_color=theme.ACCENT,
+            hover_color=theme.ACCENT_HOVER,
             height=48,
+            width=180,
             font=ctk.CTkFont(size=15, weight="bold"),
-        ).grid(row=0, column=0, sticky="ew", padx=(12, 9), pady=16)
-
-        ctk.CTkButton(
-            action_card,
+        )
+        excel_btn = ctk.CTkButton(
+            btn_frame,
             text="Export to Excel",
             command=self.handle_export_excel,
-            fg_color="#0F766E",
-            hover_color="#115E59",
+            fg_color=theme.BTN_SUCCESS,  # TODO: verify token; original used a teal shade
+            hover_color=theme.BTN_SUCCESS_HVR,
             height=48,
+            width=180,
             font=ctk.CTkFont(size=15, weight="bold"),
-        ).grid(row=0, column=1, sticky="ew", padx=(9, 12), pady=16)
+        )
+        try:
+            pdf_btn.pack(side="left", padx=(6, 12))
+            excel_btn.pack(side="left", padx=(12, 6))
+        except Exception:
+            pdf_btn.grid(row=0, column=0, padx=(6, 12))
+            excel_btn.grid(row=0, column=1, padx=(12, 6))
 
     def refresh(self) -> None:
         try:
@@ -154,29 +141,31 @@ class ExportPage(ctk.CTkFrame):
             self._set_status(f"Failed to load classes: {error}", "error")
             return
 
-        current_value = self.class_dropdown.get().strip() if hasattr(self, "class_dropdown") else "All Classes"
+        current_value = self.class_dropdown.get().strip() if hasattr(self, "class_dropdown") else ""
         self._class_map.clear()
-        options = ["All Classes"]
+        options = []
         for class_row in self._classes:
             label = self._class_label(class_row)
             self._class_map[label] = class_row
             options.append(label)
 
+        if not options:
+            options = ["No classes available"]
+
         self.class_dropdown.configure(values=options)
-        self.class_dropdown.set(current_value if current_value in options else "All Classes")
+        self.class_dropdown.set(current_value if current_value in options else options[0])
 
     def _class_label(self, class_row: dict) -> str:
-        return f"{class_row.get('name', '')} - {class_row.get('section', '')} (ID: {class_row.get('id', '-')})"
+        return f"{class_row.get('name', '')} - {class_row.get('section', '')}"
 
     def _selected_class(self) -> dict | None:
-        label = self.class_dropdown.get().strip()
-        if label == "All Classes":
-            return None
-        return self._class_map.get(label)
+        return self._class_map.get(self.class_dropdown.get().strip())
 
     def _date_range(self) -> tuple[date, date]:
-        from_date = self.from_date_entry.get_date()
-        to_date = self.to_date_entry.get_date()
+        from_date = self.range_picker.get_from_date()
+        to_date   = self.range_picker.get_to_date()
+        if not from_date or not to_date:
+            raise ValueError("Please select both a start and end date.")
         if from_date > to_date:
             raise ValueError("From date cannot be later than To date.")
         return from_date, to_date
@@ -191,51 +180,109 @@ class ExportPage(ctk.CTkFrame):
         return rows
 
     def _password_dialog(self) -> str | None:
+        DW, DH = 420, 248
+
         dialog = ctk.CTkToplevel(self)
         dialog.title("Confirm Export")
-        dialog.geometry("420x210")
+        dialog.resizable(False, False)
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
+
+        # Center over the main window
+        root = self.winfo_toplevel()
+        root.update_idletasks()
+        x = root.winfo_rootx() + (root.winfo_width()  - DW) // 2
+        y = root.winfo_rooty() + (root.winfo_height() - DH) // 2
+        dialog.geometry(f"{DW}x{DH}+{x}+{y}")
+
         dialog.grid_columnconfigure(0, weight=1)
+        dialog.grid_rowconfigure(0, weight=1)
 
         result = {"password": None}
 
-        card = ctk.CTkFrame(dialog, fg_color="#1E1E1E", corner_radius=0)
-        card.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+        card = ctk.CTkFrame(dialog, fg_color=theme.BG_SURFACE, corner_radius=0)
+        card.grid(row=0, column=0, sticky="nsew")
         card.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(card, text="Export Confirmation", font=ctk.CTkFont(size=20, weight="bold")).grid(
-            row=0, column=0, sticky="w", padx=18, pady=(16, 8)
-        )
+        ctk.CTkLabel(
+            card, text="Export Confirmation",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color=theme.TEXT_PRIMARY,
+        ).grid(row=0, column=0, sticky="w", padx=20, pady=(20, 6))
+
         ctk.CTkLabel(
             card,
             text="Enter your admin password to continue with this export.",
             justify="left",
             wraplength=360,
-            text_color="#D0D0D0",
-        ).grid(row=1, column=0, sticky="w", padx=18, pady=(0, 12))
+            font=ctk.CTkFont(size=13),
+            text_color=theme.TEXT_SECONDARY,
+        ).grid(row=1, column=0, sticky="w", padx=20, pady=(0, 12))
 
-        password_entry = ctk.CTkEntry(card, show="*", placeholder_text="Admin password", height=38)
-        password_entry.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 16))
+        # Password row: entry + eye toggle (same pattern as Login page)
+        pw_container = ctk.CTkFrame(card, fg_color=theme.BG_SURFACE_ALT, corner_radius=6)
+        pw_container.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 18))
+        pw_container.grid_columnconfigure(0, weight=1)
+
+        password_entry = ctk.CTkEntry(
+            pw_container,
+            show="*",
+            placeholder_text="Admin password",
+            height=42,
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=0,
+        )
+        password_entry.grid(row=0, column=0, sticky="ew")
         password_entry.focus()
+
+        _eye_pil       = make_eye_image(18, theme.TEXT_MUTED, slashed=False)
+        _eye_slash_pil = make_eye_image(18, theme.TEXT_MUTED, slashed=True)
+        if _eye_pil is not None:
+            _icon_eye       = ctk.CTkImage(light_image=_eye_pil,       dark_image=_eye_pil,       size=(18, 18))
+            _icon_eye_slash = ctk.CTkImage(light_image=_eye_slash_pil, dark_image=_eye_slash_pil, size=(18, 18))
+            _eye_kw: dict = {"text": "", "image": _icon_eye_slash}
+        else:
+            _icon_eye = _icon_eye_slash = None
+            _eye_kw = {"text": "👁"}
+
+        def _toggle_pw() -> None:
+            if password_entry.cget("show") == "":
+                password_entry.configure(show="*")
+                eye_btn.configure(**({"image": _icon_eye_slash, "text": ""} if _icon_eye_slash else {"text": "👁"}))
+            else:
+                password_entry.configure(show="")
+                eye_btn.configure(**({"image": _icon_eye, "text": ""} if _icon_eye else {"text": "🙈"}))
+
+        eye_btn = ctk.CTkButton(
+            pw_container, width=34, height=34,
+            fg_color="transparent", hover_color=theme.INPUT_HIGHLIGHT,
+            text_color=theme.TEXT_MUTED, corner_radius=4,
+            command=_toggle_pw, **_eye_kw,
+        )
+        eye_btn.grid(row=0, column=1, padx=(0, 4))
 
         def submit() -> None:
             result["password"] = password_entry.get()
             dialog.destroy()
 
         actions = ctk.CTkFrame(card, fg_color="transparent")
-        actions.grid(row=3, column=0, sticky="ew", padx=18, pady=(0, 16))
-        ctk.CTkButton(actions, text="Cancel", command=dialog.destroy, corner_radius=6).pack(side="left")
+        actions.grid(row=3, column=0, sticky="ew", padx=20, pady=(0, 20))
+
         ctk.CTkButton(
-            actions,
-            text="Confirm",
-            command=submit,
-            fg_color="#1E88E5",
-            hover_color="#1565C0",
-            corner_radius=6,
+            actions, text="Cancel", command=dialog.destroy,
+            fg_color=theme.BG_SURFACE_ALT, hover_color=theme.BG_HOVER,
+            text_color=theme.TEXT_SECONDARY, corner_radius=6,
+        ).pack(side="left")
+        ctk.CTkButton(
+            actions, text="Confirm", command=submit,
+            fg_color=theme.ACCENT, hover_color=theme.ACCENT_HOVER,
+            text_color=theme.TEXT_PRIMARY, corner_radius=6,
         ).pack(side="right")
 
-        password_entry.bind("<Return>", lambda _event: submit())
+        password_entry.bind("<Return>", lambda _: submit())
         self.wait_window(dialog)
         return result["password"]
 
@@ -253,13 +300,13 @@ class ExportPage(ctk.CTkFrame):
             return False
         return True
 
-    def _report_metadata(self) -> tuple[date, date, dict | None, int | None, str]:
+    def _report_metadata(self) -> tuple[date, date, dict, int, str]:
         from_date, to_date = self._date_range()
         selected_class = self._selected_class()
-        class_id = int(selected_class["id"]) if selected_class is not None else None
-        class_name = "All Classes"
-        if selected_class is not None:
-            class_name = f"{selected_class.get('name', '')} {selected_class.get('section', '')}".strip()
+        if selected_class is None:
+            raise ValueError("Please select a class before exporting.")
+        class_id   = int(selected_class["id"])
+        class_name = f"{selected_class.get('name', '')} {selected_class.get('section', '')}".strip()
         return from_date, to_date, selected_class, class_id, class_name
 
     def _build_export_dataframe(self, rows: list[dict]) -> pd.DataFrame:

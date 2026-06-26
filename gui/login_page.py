@@ -3,6 +3,8 @@ from __future__ import annotations
 import customtkinter as ctk
 
 from core.database import verify_admin
+from gui import theme
+from gui.widgets import make_eye_image as _make_eye_image
 
 _CARD_WIDTH = 440
 _SUBTITLE = "Nihareeka College of Management and Information Technology"
@@ -10,14 +12,12 @@ _SUBTITLE = "Nihareeka College of Management and Information Technology"
 
 class LoginPage(ctk.CTkFrame):
     def __init__(self, master, on_login_success) -> None:
-        super().__init__(master, fg_color="#0D0D0D")
+        super().__init__(master, fg_color=theme.BG_ROOT)
         self.app = master
         self.on_login_success = on_login_success
 
-        self.app.minsize(500, 400)
-
         # ── centering wrapper ──────────────────────────────────────────────
-        wrapper = ctk.CTkFrame(self, fg_color="#1A1A1A", corner_radius=12, width=400)
+        wrapper = ctk.CTkFrame(self, fg_color=theme.BG_SURFACE, corner_radius=12, width=400)
         wrapper.pack(expand=True)
         wrapper.grid_columnconfigure(0, weight=1)
         wrapper.grid_rowconfigure(0, weight=1)
@@ -27,7 +27,7 @@ class LoginPage(ctk.CTkFrame):
             wrapper,
             text="Biometric Attendance System",
             font=ctk.CTkFont(size=26, weight="bold"),
-            text_color="white",
+            text_color=theme.TEXT_PRIMARY,
             justify="center",
         ).grid(row=0, column=0, padx=32, pady=(36, 4), sticky="ew")
 
@@ -35,7 +35,7 @@ class LoginPage(ctk.CTkFrame):
             wrapper,
             text=_SUBTITLE,
             font=ctk.CTkFont(size=12),
-            text_color="#888888",
+            text_color=theme.TEXT_SECONDARY,
             justify="center",
             wraplength=360,
         ).grid(row=1, column=0, padx=32, pady=(0, 28), sticky="ew")
@@ -45,7 +45,7 @@ class LoginPage(ctk.CTkFrame):
             wrapper,
             text="Username",
             font=ctk.CTkFont(size=13, weight="bold"),
-            text_color="#CCCCCC",
+            text_color=theme.TEXT_PRIMARY,
             anchor="w",
         ).grid(row=2, column=0, padx=32, pady=(0, 6), sticky="w")
 
@@ -53,11 +53,11 @@ class LoginPage(ctk.CTkFrame):
             wrapper,
             height=42,
             placeholder_text="Enter username",
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
             corner_radius=6,
-            fg_color="#252525",
-            border_color="#333333",
-            border_width=1,
-            text_color="white",
         )
         self.username_entry.grid(row=3, column=0, padx=32, pady=(0, 18), sticky="ew")
 
@@ -66,12 +66,16 @@ class LoginPage(ctk.CTkFrame):
             wrapper,
             text="Password",
             font=ctk.CTkFont(size=13, weight="bold"),
-            text_color="#CCCCCC",
+            text_color=theme.TEXT_PRIMARY,
             anchor="w",
         ).grid(row=4, column=0, padx=32, pady=(0, 6), sticky="w")
 
-        # password entry with show/hide toggle
-        pw_container = ctk.CTkFrame(wrapper, fg_color="#1A1A1A", corner_radius=0)
+        # password entry with inline eye toggle
+        pw_container = ctk.CTkFrame(
+            wrapper,
+            fg_color=theme.BG_SURFACE_ALT,
+            corner_radius=6,
+        )
         pw_container.grid_columnconfigure(0, weight=1)
         pw_container.grid(row=5, column=0, padx=32, pady=(0, 22), sticky="ew")
 
@@ -80,32 +84,48 @@ class LoginPage(ctk.CTkFrame):
             height=42,
             placeholder_text="Enter password",
             show="*",
-            corner_radius=6,
-            fg_color="#252525",
-            border_color="#333333",
-            border_width=1,
-            text_color="white",
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=0,
         )
         self.password_entry.grid(row=0, column=0, sticky="ew")
 
-        self._show_password_btn = ctk.CTkButton(
+        _eye_pil       = _make_eye_image(18, theme.TEXT_MUTED, slashed=False)
+        _eye_slash_pil = _make_eye_image(18, theme.TEXT_MUTED, slashed=True)
+        if _eye_pil is not None:
+            self._icon_eye = ctk.CTkImage(
+                light_image=_eye_pil, dark_image=_eye_pil, size=(18, 18),
+            )
+            self._icon_eye_slash = ctk.CTkImage(
+                light_image=_eye_slash_pil, dark_image=_eye_slash_pil, size=(18, 18),
+            )
+            _btn_kw: dict = {"text": "", "image": self._icon_eye_slash}
+        else:
+            self._icon_eye = self._icon_eye_slash = None
+            _btn_kw = {"text": "👁"}
+
+        self._eye_btn = ctk.CTkButton(
             pw_container,
-            text="Show",
-            width=70,
-            height=30,
-            fg_color="#2A2A2A",
-            hover_color="#333333",
+            width=34,
+            height=34,
+            fg_color="transparent",
+            hover_color=theme.INPUT_HIGHLIGHT,
+            text_color=theme.TEXT_MUTED,
+            corner_radius=4,
             command=self._toggle_password,
+            **_btn_kw,
         )
-        self._show_password_btn.grid(row=0, column=1, padx=(8, 0), sticky="e")
+        self._eye_btn.grid(row=0, column=1, padx=(0, 4))
 
         # ── login button ──────────────────────────────────────────────────
         ctk.CTkButton(
             wrapper,
             text="Login",
             command=self.handle_login,
-            fg_color="#1f538d",
-            hover_color="#1a4a7a",
+            fg_color=theme.ACCENT,
+            hover_color=theme.ACCENT_HOVER,
             height=44,
             corner_radius=6,
             font=ctk.CTkFont(size=15, weight="bold"),
@@ -117,7 +137,7 @@ class LoginPage(ctk.CTkFrame):
             wrapper,
             textvariable=self._error_var,
             font=ctk.CTkFont(size=13),
-            text_color="#FF5252",
+            text_color=theme.DANGER,
             justify="center",
             wraplength=360,
         )
@@ -128,13 +148,18 @@ class LoginPage(ctk.CTkFrame):
         self.password_entry.bind("<Return>", lambda _e: self.handle_login())
 
     def _toggle_password(self) -> None:
-        current = self.password_entry.cget("show")
-        if current == "":
+        if self.password_entry.cget("show") == "":
             self.password_entry.configure(show="*")
-            self._show_password_btn.configure(text="Show")
+            if self._icon_eye_slash is not None:
+                self._eye_btn.configure(image=self._icon_eye_slash, text="")
+            else:
+                self._eye_btn.configure(text="👁")
         else:
             self.password_entry.configure(show="")
-            self._show_password_btn.configure(text="Hide")
+            if self._icon_eye is not None:
+                self._eye_btn.configure(image=self._icon_eye, text="")
+            else:
+                self._eye_btn.configure(text="🙈")
 
     # ── public API expected by app.py ─────────────────────────────────────
 
@@ -150,13 +175,16 @@ class LoginPage(ctk.CTkFrame):
         except Exception:
             pass
 
-        # Ensure password is masked and toggle shows correct label
+        # Ensure password is masked and eye icon reset
         try:
             self.password_entry.configure(show="*")
         except Exception:
             pass
         try:
-            self._show_password_btn.configure(text="Show")
+            if self._icon_eye_slash is not None:
+                self._eye_btn.configure(image=self._icon_eye_slash, text="")
+            else:
+                self._eye_btn.configure(text="👁")
         except Exception:
             pass
 

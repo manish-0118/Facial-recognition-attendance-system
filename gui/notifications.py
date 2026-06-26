@@ -1,4 +1,5 @@
 import customtkinter as ctk
+from gui import theme
 
 
 class NotificationManager:

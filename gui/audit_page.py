@@ -3,6 +3,7 @@ from __future__ import annotations
 import customtkinter as ctk
 
 from core.database import get_audit_log, get_exports_log
+from gui import theme
 
 
 class AuditPage(ctk.CTkFrame):
@@ -16,9 +17,9 @@ class AuditPage(ctk.CTkFrame):
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
-        header = ctk.CTkFrame(self, fg_color="#1A1A1A", corner_radius=0, height=60)
+        header = ctk.CTkFrame(self, fg_color=theme.BG_SURFACE, corner_radius=0, height=60)
         header.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
-        ctk.CTkLabel(header, text="Audit & Export Logs", font=ctk.CTkFont(size=20, weight="bold"), text_color="white").pack(side="left", padx=20, pady=15)
+        ctk.CTkLabel(header, text="Audit & Export Logs", font=ctk.CTkFont(size=20, weight="bold"), text_color=theme.TEXT_PRIMARY).pack(side="left", padx=20, pady=15)
         body = ctk.CTkFrame(self, fg_color="transparent")
         body.grid(row=1, column=0, sticky="nsew")
         body.grid_columnconfigure(0, weight=1)
@@ -27,7 +28,7 @@ class AuditPage(ctk.CTkFrame):
         self.permission_label = ctk.CTkLabel(
             body,
             text="",
-            text_color="#FF5252",
+            text_color=theme.DANGER,
             font=ctk.CTkFont(size=13),
             justify="left",
         )
@@ -54,7 +55,7 @@ class AuditPage(ctk.CTkFrame):
         self.refresh()
 
     def _build_log_card(self, parent, row: int, title: str, headers: list[str], refresh_command, refresh_label: str):
-        card = ctk.CTkFrame(parent, fg_color="#1A1A1A", corner_radius=14)
+        card = ctk.CTkFrame(parent, fg_color=theme.BG_SURFACE, corner_radius=14)
         card.grid(row=row, column=0, sticky="nsew", padx=20, pady=(0, 14))
         card.grid_columnconfigure(0, weight=1)
         card.grid_rowconfigure(1, weight=1)
@@ -66,14 +67,14 @@ class AuditPage(ctk.CTkFrame):
             toolbar,
             text=title,
             font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="white",
+            text_color=theme.TEXT_PRIMARY,
         ).grid(row=0, column=0, sticky="w")
         ctk.CTkButton(
             toolbar,
             text=refresh_label,
             command=refresh_command,
-            fg_color="#1E88E5",
-            hover_color="#1565C0",
+            fg_color=theme.ACCENT,
+            hover_color=theme.ACCENT_HOVER,
             width=170,
         ).grid(row=0, column=1, sticky="e")
 
@@ -88,14 +89,14 @@ class AuditPage(ctk.CTkFrame):
                 scroll,
                 text=header,
                 font=ctk.CTkFont(size=12, weight="bold"),
-                text_color="#888888",
+                text_color=theme.TEXT_SECONDARY,
                 anchor="w",
             ).grid(row=0, column=col, sticky="ew", padx=(10, 6), pady=(0, 6))
 
         empty_label = ctk.CTkLabel(
             scroll,
             text="No records found.",
-            text_color="#888888",
+            text_color=theme.TEXT_SECONDARY,
             font=ctk.CTkFont(size=13),
         )
 
@@ -138,7 +139,7 @@ class AuditPage(ctk.CTkFrame):
             return
 
         for idx, row in enumerate(rows, start=1):
-            bg = "#1A1A1A" if idx % 2 else "#202020"
+            bg = theme.BG_ROW_ODD if idx % 2 else theme.BG_ROW_EVEN
             values = [
                 str(row.get("admin_username", "-")),
                 str(row.get("action", "-")),
@@ -150,7 +151,7 @@ class AuditPage(ctk.CTkFrame):
                     self.audit_card["scroll"],
                     text=value,
                     font=ctk.CTkFont(size=12),
-                    text_color="white",
+                    text_color=theme.TEXT_PRIMARY,
                     fg_color=bg,
                     anchor="w",
                     corner_radius=4,
@@ -180,7 +181,7 @@ class AuditPage(ctk.CTkFrame):
             return
 
         for idx, row in enumerate(rows, start=1):
-            bg = "#1A1A1A" if idx % 2 else "#202020"
+            bg = theme.BG_ROW_ODD if idx % 2 else theme.BG_ROW_EVEN
             values = [
                 str(row.get("admin_username", "-")),
                 str(row.get("export_type", "-")),
@@ -192,7 +193,7 @@ class AuditPage(ctk.CTkFrame):
                     self.export_card["scroll"],
                     text=value,
                     font=ctk.CTkFont(size=12),
-                    text_color="white",
+                    text_color=theme.TEXT_PRIMARY,
                     fg_color=bg,
                     anchor="w",
                     corner_radius=4,

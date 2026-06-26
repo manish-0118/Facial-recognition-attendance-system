@@ -9,6 +9,7 @@ import dlib
 import numpy as np
 
 from database import log_action, mark_attendance
+from gui import theme
 from take_attendance import (
     CONFIDENCE_THRESHOLD,
     EYE_ASPECT_RATIO_THRESHOLD,

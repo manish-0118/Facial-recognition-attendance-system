@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import customtkinter as ctk
+from gui import theme
 
 from core.database import add_class, delete_class, get_all_classes, get_class_count, get_max_classes
 
@@ -36,14 +37,14 @@ class ClassPage(ctk.CTkFrame):
             head,
             text="Classes",
             font=ctk.CTkFont(size=28, weight="bold"),
-            text_color="white",
+            text_color=theme.TEXT_PRIMARY,
         ).grid(row=0, column=0, sticky="w")
 
         self.class_count_label = ctk.CTkLabel(
             head,
             text="0 / 0 classes",
             font=ctk.CTkFont(size=14),
-            text_color="#888888",
+            text_color=theme.TEXT_SECONDARY,
         )
         self.class_count_label.grid(row=1, column=0, sticky="w", pady=(4, 0))
 
@@ -51,15 +52,15 @@ class ClassPage(ctk.CTkFrame):
             head,
             text="Refresh",
             command=self.refresh,
-            fg_color="#1E88E5",
-            hover_color="#1565C0",
+            fg_color=theme.ACCENT,
+            hover_color=theme.ACCENT_HOVER,
             width=110,
             height=34,
             corner_radius=6,
         ).grid(row=0, column=1, rowspan=2, sticky="e")
 
     def _build_add_form(self) -> None:
-        form_card = ctk.CTkFrame(self, fg_color="#1A1A1A", corner_radius=10)
+        form_card = ctk.CTkFrame(self, fg_color=theme.BG_SURFACE, corner_radius=10)
         form_card.grid(row=1, column=0, sticky="ew", padx=24, pady=(4, 12))
         for i in range(7):
             form_card.grid_columnconfigure(i, weight=0)
@@ -70,25 +71,52 @@ class ClassPage(ctk.CTkFrame):
             form_card,
             text="Add Class",
             font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="white",
+            text_color=theme.TEXT_PRIMARY,
         ).grid(row=0, column=0, columnspan=7, sticky="w", padx=16, pady=(14, 10))
 
-        ctk.CTkLabel(form_card, text="Class Name", text_color="#888888").grid(
+        ctk.CTkLabel(form_card, text="Class Name", text_color=theme.TEXT_SECONDARY).grid(
             row=1, column=0, sticky="w", padx=(16, 8), pady=(0, 8)
         )
-        self.name_entry = ctk.CTkEntry(form_card, placeholder_text="e.g. BSc CSIT", height=36)
+        self.name_entry = ctk.CTkEntry(
+            form_card,
+            placeholder_text="e.g. BSc CSIT",
+            height=42,
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=6,
+        )
         self.name_entry.grid(row=1, column=1, sticky="ew", padx=(0, 16), pady=(0, 8))
 
-        ctk.CTkLabel(form_card, text="Section", text_color="#888888").grid(
+        ctk.CTkLabel(form_card, text="Section", text_color=theme.TEXT_SECONDARY).grid(
             row=1, column=2, sticky="w", padx=(0, 8), pady=(0, 8)
         )
-        self.section_entry = ctk.CTkEntry(form_card, placeholder_text="e.g. A", height=36)
+        self.section_entry = ctk.CTkEntry(
+            form_card,
+            placeholder_text="e.g. A",
+            height=42,
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=6,
+        )
         self.section_entry.grid(row=1, column=3, sticky="ew", padx=(0, 16), pady=(0, 8))
 
-        ctk.CTkLabel(form_card, text="Max Students", text_color="#888888").grid(
+        ctk.CTkLabel(form_card, text="Max Students", text_color=theme.TEXT_SECONDARY).grid(
             row=1, column=4, sticky="w", padx=(0, 8), pady=(0, 8)
         )
-        self.max_students_entry = ctk.CTkEntry(form_card, width=120, height=36)
+        self.max_students_entry = ctk.CTkEntry(
+            form_card,
+            width=120,
+            height=42,
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=6,
+        )
         self.max_students_entry.grid(row=1, column=5, sticky="ew", padx=(0, 16), pady=(0, 8))
         self.max_students_entry.insert(0, "30")
 
@@ -96,45 +124,81 @@ class ClassPage(ctk.CTkFrame):
             form_card,
             text="Add Class",
             command=self._handle_add_class,
-            fg_color="#1E88E5",
-            hover_color="#1565C0",
+            fg_color=theme.ACCENT,
+            hover_color=theme.ACCENT_HOVER,
             height=36,
             width=110,
             corner_radius=6,
         ).grid(row=1, column=6, sticky="e", padx=(0, 16), pady=(0, 8))
 
         # Late / Absent cutoff fields
-        ctk.CTkLabel(form_card, text="Late Cutoff (HH:MM)", text_color="#888888").grid(
+        ctk.CTkLabel(form_card, text="Late Cutoff (HH:MM)", text_color=theme.TEXT_SECONDARY).grid(
             row=2, column=0, sticky="w", padx=(16, 8), pady=(6, 12)
         )
-        self.late_cutoff_entry = ctk.CTkEntry(form_card, placeholder_text="HH:MM", height=36)
+        self.late_cutoff_entry = ctk.CTkEntry(
+            form_card,
+            placeholder_text="HH:MM",
+            height=42,
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=6,
+        )
         self.late_cutoff_entry.grid(row=2, column=1, sticky="ew", padx=(0, 16), pady=(6, 12))
         self.late_cutoff_entry.insert(0, "06:30")
 
-        ctk.CTkLabel(form_card, text="Absent Cutoff (HH:MM)", text_color="#888888").grid(
+        ctk.CTkLabel(form_card, text="Absent Cutoff (HH:MM)", text_color=theme.TEXT_SECONDARY).grid(
             row=2, column=2, sticky="w", padx=(0, 8), pady=(6, 12)
         )
-        self.absent_cutoff_entry = ctk.CTkEntry(form_card, placeholder_text="HH:MM", height=36)
+        self.absent_cutoff_entry = ctk.CTkEntry(
+            form_card,
+            placeholder_text="HH:MM",
+            height=42,
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=6,
+        )
         self.absent_cutoff_entry.grid(row=2, column=3, sticky="ew", padx=(0, 16), pady=(6, 12))
         self.absent_cutoff_entry.insert(0, "07:00")
 
         # Class start/end time fields
-        ctk.CTkLabel(form_card, text="Class Start (HH:MM)", text_color="#888888").grid(
+        ctk.CTkLabel(form_card, text="Class Start (HH:MM)", text_color=theme.TEXT_SECONDARY).grid(
             row=3, column=0, sticky="w", padx=(16, 8), pady=(0, 12)
         )
-        self.start_time_entry = ctk.CTkEntry(form_card, placeholder_text="HH:MM", height=36)
+        self.start_time_entry = ctk.CTkEntry(
+            form_card,
+            placeholder_text="HH:MM",
+            height=42,
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=6,
+        )
         self.start_time_entry.grid(row=3, column=1, sticky="ew", padx=(0, 16), pady=(0, 12))
         self.start_time_entry.insert(0, "06:00")
 
-        ctk.CTkLabel(form_card, text="Class End (HH:MM)", text_color="#888888").grid(
+        ctk.CTkLabel(form_card, text="Class End (HH:MM)", text_color=theme.TEXT_SECONDARY).grid(
             row=3, column=2, sticky="w", padx=(0, 8), pady=(0, 12)
         )
-        self.end_time_entry = ctk.CTkEntry(form_card, placeholder_text="HH:MM", height=36)
+        self.end_time_entry = ctk.CTkEntry(
+            form_card,
+            placeholder_text="HH:MM",
+            height=42,
+            fg_color=theme.BG_SURFACE_ALT,
+            border_width=0,
+            text_color=theme.TEXT_PRIMARY,
+            placeholder_text_color=theme.TEXT_MUTED,
+            corner_radius=6,
+        )
         self.end_time_entry.grid(row=3, column=3, sticky="ew", padx=(0, 16), pady=(0, 12))
         self.end_time_entry.insert(0, "10:00")
 
     def _build_table(self) -> None:
-        table_card = ctk.CTkFrame(self, fg_color="#1A1A1A", corner_radius=10)
+        table_card = ctk.CTkFrame(self, fg_color=theme.BG_SURFACE, corner_radius=10)
         table_card.grid(row=2, column=0, sticky="nsew", padx=24, pady=(0, 18))
         table_card.grid_columnconfigure(0, weight=1)
         table_card.grid_rowconfigure(1, weight=1)
@@ -143,7 +207,7 @@ class ClassPage(ctk.CTkFrame):
             table_card,
             text="All Classes",
             font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="white",
+            text_color=theme.TEXT_PRIMARY,
         ).grid(row=0, column=0, sticky="w", padx=16, pady=(12, 8))
 
         self.table_scroll = ctk.CTkScrollableFrame(table_card, fg_color="transparent")
@@ -158,7 +222,7 @@ class ClassPage(ctk.CTkFrame):
             ctk.CTkLabel(
                 self.table_scroll,
                 text=header,
-                text_color="#888888",
+                text_color=theme.TEXT_SECONDARY,
                 font=ctk.CTkFont(size=12, weight="bold"),
                 anchor="w",
             ).grid(row=0, column=col, sticky="ew", padx=(10, 6), pady=(0, 6))
@@ -166,7 +230,7 @@ class ClassPage(ctk.CTkFrame):
         self.empty_label = ctk.CTkLabel(
             self.table_scroll,
             text="No classes found.",
-            text_color="#888888",
+            text_color=theme.TEXT_SECONDARY,
         )
 
     def _notify(self, message: str, kind: str) -> None:
@@ -186,7 +250,7 @@ class ClassPage(ctk.CTkFrame):
             result["ok"] = True
             dialog.destroy()
 
-        card = ctk.CTkFrame(dialog, fg_color="#1E1E1E", corner_radius=0)
+        card = ctk.CTkFrame(dialog, fg_color=theme.BG_SURFACE, corner_radius=0)
         card.pack(fill="both", expand=True, padx=8, pady=8)
 
         ctk.CTkLabel(
@@ -200,7 +264,7 @@ class ClassPage(ctk.CTkFrame):
             text=f"Delete class '{class_name}'? This action cannot be undone.",
             justify="left",
             wraplength=380,
-            text_color="#D0D0D0",
+            text_color=theme.TEXT_SECONDARY,
         ).pack(anchor="w", padx=16, pady=(0, 14))
 
         actions = ctk.CTkFrame(card, fg_color="transparent")
@@ -211,8 +275,8 @@ class ClassPage(ctk.CTkFrame):
             actions,
             text="Delete",
             command=do_delete,
-            fg_color="#C62828",
-            hover_color="#A51F1F",
+            fg_color=theme.BTN_DANGER,
+            hover_color=theme.BTN_DANGER_HVR,
             corner_radius=6,
         ).pack(side="right")
 
@@ -322,7 +386,7 @@ class ClassPage(ctk.CTkFrame):
             return
 
         for idx, row in enumerate(classes, start=1):
-            bg = "#1A1A1A" if idx % 2 else "#202020"
+            bg = theme.BG_SURFACE if idx % 2 else theme.BG_SURFACE_ALT
             row_widgets: list[ctk.CTkBaseClass] = []
 
             values = [
@@ -338,7 +402,7 @@ class ClassPage(ctk.CTkFrame):
                 lbl = ctk.CTkLabel(
                     self.table_scroll,
                     text=value,
-                    text_color="white",
+                    text_color=theme.TEXT_PRIMARY,
                     fg_color=bg,
                     anchor="w",
                     font=ctk.CTkFont(size=12),
@@ -349,8 +413,8 @@ class ClassPage(ctk.CTkFrame):
             btn = ctk.CTkButton(
                 self.table_scroll,
                 text="Delete",
-                fg_color="#C62828",
-                hover_color="#A51F1F",
+                fg_color=theme.BTN_DANGER,
+                hover_color=theme.BTN_DANGER_HVR,
                 width=84,
                 height=28,
                 corner_radius=6,

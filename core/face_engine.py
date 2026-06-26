@@ -1,6 +1,6 @@
 import os
-import cv2
-import numpy as np
+import cv2 # pyright: ignore[reportMissingImports]
+import numpy as np # pyright: ignore[reportMissingImports]
 import pickle
 import shutil
 

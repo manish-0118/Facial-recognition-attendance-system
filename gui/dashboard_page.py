@@ -8,13 +8,14 @@ from core.database import (
     get_all_students,
     get_today_attendance,
 )
+from gui import theme
 
 _AUTO_REFRESH_MS = 30_000
 
 _STATUS_COLORS = {
-    "present": "#4CAF50",
-    "late": "#FFC107",
-    "absent": "#F44336",
+    "present": theme.SUCCESS,
+    "late": theme.WARNING,
+    "absent": theme.DANGER,
 }
 
 _COL_HEADERS = ["Name", "Student ID", "Class", "Time", "Status"]
@@ -50,7 +51,7 @@ class DashboardPage(ctk.CTkFrame):
             header,
             text=f"Welcome back, {self.username}",
             font=ctk.CTkFont(size=26, weight="bold"),
-            text_color="white",
+            text_color=theme.TEXT_PRIMARY,
             anchor="w",
         ).grid(row=0, column=0, sticky="w")
 
@@ -58,7 +59,7 @@ class DashboardPage(ctk.CTkFrame):
             header,
             text="Here's a snapshot of today's attendance activity.",
             font=ctk.CTkFont(size=13),
-            text_color="white",
+            text_color=theme.TEXT_PRIMARY,
             anchor="w",
         ).grid(row=1, column=0, sticky="w", pady=(4, 0))
 
@@ -66,8 +67,8 @@ class DashboardPage(ctk.CTkFrame):
             header,
             text="Refresh",
             command=self._load,
-            fg_color="#1E88E5",
-            hover_color="#1565C0",
+            fg_color=theme.ACCENT,
+            hover_color=theme.ACCENT_HOVER,
             width=100,
             height=34,
             corner_radius=6,
@@ -83,16 +84,17 @@ class DashboardPage(ctk.CTkFrame):
 
         self._stat_labels: list[ctk.CTkLabel] = []
         specs = [
-            ("Total Students", "#2C5EFF"),
-            ("Total Classes", "#00897B"),
-            ("Present Today", "#2E7D32"),
-            ("Total Admins", "#6A1B9A"),
+            ("Total Students", theme.STAT_BLUE),
+            ("Total Classes", theme.STAT_TEAL),
+            ("Present Today", theme.STAT_GREEN),
+            ("Total Admins", theme.STAT_PURPLE),
         ]
         for col, (title, accent) in enumerate(specs):
-            card = ctk.CTkFrame(row, fg_color="#1A1A1A", corner_radius=10)
+            card = ctk.CTkFrame(row, fg_color=theme.BG_SURFACE, corner_radius=10)
             card.grid(row=0, column=col, sticky="ew", padx=(0 if col == 0 else 10, 0))
             card.grid_columnconfigure(0, weight=1)
 
+            # accent bars use stat-specific tokens where possible
             bar = ctk.CTkFrame(card, fg_color=accent, height=4, corner_radius=0)
             bar.grid(row=0, column=0, sticky="ew")
 
@@ -100,7 +102,7 @@ class DashboardPage(ctk.CTkFrame):
                 card,
                 text="—",
                 font=ctk.CTkFont(size=34, weight="bold"),
-                text_color="#F5F5F5",
+                text_color=theme.TEXT_PRIMARY,
             )
             value_lbl.grid(row=1, column=0, sticky="w", padx=18, pady=(12, 4))
             self._stat_labels.append(value_lbl)
@@ -109,11 +111,11 @@ class DashboardPage(ctk.CTkFrame):
                 card,
                 text=title,
                 font=ctk.CTkFont(size=12),
-                text_color="white",
+                text_color=theme.TEXT_PRIMARY,
             ).grid(row=2, column=0, sticky="w", padx=18, pady=(0, 14))
 
     def _build_table_section(self) -> None:
-        section = ctk.CTkFrame(self, fg_color="#1A1A1A", corner_radius=10)
+        section = ctk.CTkFrame(self, fg_color=theme.BG_SURFACE, corner_radius=10)
         section.grid(row=2, column=0, sticky="nsew", padx=24, pady=(18, 18))
         section.grid_columnconfigure(0, weight=1)
         section.grid_rowconfigure(1, weight=1)
@@ -122,7 +124,7 @@ class DashboardPage(ctk.CTkFrame):
             section,
             text="Today's Attendance",
             font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="white",
+            text_color=theme.TEXT_PRIMARY,
         ).grid(row=0, column=0, sticky="w", padx=18, pady=(14, 10))
 
         scroll = ctk.CTkScrollableFrame(section, fg_color="transparent", corner_radius=0)
@@ -195,7 +197,7 @@ class DashboardPage(ctk.CTkFrame):
 
         for data_idx, record in enumerate(rows):
             grid_row = data_idx + 1  # row 0 is the header
-            bg = "#1A1A1A" if data_idx % 2 == 0 else "#1F1F1F"
+            bg = theme.BG_ROW_ODD if data_idx % 2 == 0 else theme.BG_ROW_EVEN
             status = str(record.get("status", "")).lower()
             status_color = _STATUS_COLORS.get(status, "white")
             class_display = class_map.get(record.get("class_id"), str(record.get("class_id", "—")))
@@ -227,7 +229,7 @@ class DashboardPage(ctk.CTkFrame):
 
             widget_row: list[ctk.CTkLabel] = []
             for col, (value, _) in enumerate(zip(cell_values, _COL_HEADERS)):
-                text_color = status_color if col == 4 else "white"
+                text_color = status_color if col == 4 else theme.TEXT_PRIMARY
                 lbl = ctk.CTkLabel(
                     scroll,
                     text=value,
