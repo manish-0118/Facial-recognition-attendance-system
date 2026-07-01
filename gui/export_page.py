@@ -13,7 +13,7 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from core.database import get_all_classes, get_attendance_by_date, log_export, verify_admin
-from gui.widgets import ThemedDropdown, ThemedRangePicker, make_eye_image
+from gui.widgets import ThemedDropdown, ThemedRangePicker, make_eye_image, center_dialog
 
 COLLEGE_NAME = "Nihareeka College of Management and Information Technology"
 STATUS_HEX = {
@@ -81,7 +81,7 @@ class ExportPage(ctk.CTkFrame):
             filter_card, text="Class",
             font=ctk.CTkFont(size=13), text_color=theme.TEXT_PRIMARY,
         ).grid(row=0, column=0, sticky="w", padx=(18, 8), pady=(16, 8))
-        self.class_dropdown = ThemedDropdown(filter_card, values=["Loading…"])
+        self.class_dropdown = ThemedDropdown(filter_card, values=["Loading…"], height=36)
         self.class_dropdown.grid(row=0, column=1, sticky="ew", padx=(0, 24), pady=(16, 8))
 
         # Row 0 — Date range picker
@@ -93,6 +93,7 @@ class ExportPage(ctk.CTkFrame):
             filter_card,
             initial_from=date.today(),
             initial_to=date.today(),
+            height=36,
         )
         self.range_picker.grid(row=0, column=3, sticky="ew", padx=(0, 18), pady=(10, 8))
 
@@ -113,19 +114,19 @@ class ExportPage(ctk.CTkFrame):
             command=self.handle_export_pdf,
             fg_color=theme.ACCENT,
             hover_color=theme.ACCENT_HOVER,
-            height=48,
-            width=180,
-            font=ctk.CTkFont(size=15, weight="bold"),
+            height=36,
+            width=160,
+            font=ctk.CTkFont(size=14, weight="bold"),
         )
         excel_btn = ctk.CTkButton(
             btn_frame,
             text="Export to Excel",
             command=self.handle_export_excel,
-            fg_color=theme.BTN_SUCCESS,  # TODO: verify token; original used a teal shade
+            fg_color=theme.BTN_SUCCESS,
             hover_color=theme.BTN_SUCCESS_HVR,
-            height=48,
-            width=180,
-            font=ctk.CTkFont(size=15, weight="bold"),
+            height=36,
+            width=160,
+            font=ctk.CTkFont(size=14, weight="bold"),
         )
         try:
             pdf_btn.pack(side="left", padx=(6, 12))
@@ -180,20 +181,12 @@ class ExportPage(ctk.CTkFrame):
         return rows
 
     def _password_dialog(self) -> str | None:
-        DW, DH = 420, 248
-
         dialog = ctk.CTkToplevel(self)
         dialog.title("Confirm Export")
         dialog.resizable(False, False)
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
-
-        # Center over the main window
-        root = self.winfo_toplevel()
-        root.update_idletasks()
-        x = root.winfo_rootx() + (root.winfo_width()  - DW) // 2
-        y = root.winfo_rooty() + (root.winfo_height() - DH) // 2
-        dialog.geometry(f"{DW}x{DH}+{x}+{y}")
+        center_dialog(dialog, 420, 248)
 
         dialog.grid_columnconfigure(0, weight=1)
         dialog.grid_rowconfigure(0, weight=1)
@@ -236,7 +229,7 @@ class ExportPage(ctk.CTkFrame):
             corner_radius=0,
         )
         password_entry.grid(row=0, column=0, sticky="ew")
-        password_entry.focus()
+        password_entry._entry.focus_set()
 
         _eye_pil       = make_eye_image(18, theme.TEXT_MUTED, slashed=False)
         _eye_slash_pil = make_eye_image(18, theme.TEXT_MUTED, slashed=True)

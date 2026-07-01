@@ -13,6 +13,7 @@ _THEMES = {
 		# Backgrounds
 		"BG_ROOT":        "#0A0F1C",
 		"BG_SURFACE":     "#111827",
+		"BG_ELEVATED":    "#1C252E",
 		"BG_SURFACE_ALT": "#1F2937",
 		"BG_ROW_ODD":     "#111827",
 		"BG_ROW_EVEN":    "#1A2332",
@@ -60,6 +61,7 @@ _THEMES = {
 		"BTN_DANGER_HVR":    "#B91C1C",
 		"BTN_SUCCESS":       "#16A34A",
 		"BTN_SUCCESS_HVR":   "#15803D",
+		"BTN_ADD_HVR":       "#22C55E",
 		# CTk mode
 		"CTK_MODE": "dark",
 	},
@@ -68,6 +70,7 @@ _THEMES = {
 		# Backgrounds
 		"BG_ROOT":        "#F8FAFC",
 		"BG_SURFACE":     "#FFFFFF",
+		"BG_ELEVATED":    "#F5F7FA",
 		"BG_SURFACE_ALT": "#F1F5F9",
 		"BG_ROW_ODD":     "#FFFFFF",
 		"BG_ROW_EVEN":    "#F8FAFC",
@@ -115,6 +118,7 @@ _THEMES = {
 		"BTN_DANGER_HVR":    "#B91C1C",
 		"BTN_SUCCESS":       "#16A34A",
 		"BTN_SUCCESS_HVR":   "#15803D",
+		"BTN_ADD_HVR":       "#15803D",
 		# CTk mode
 		"CTK_MODE": "light",
 	},
@@ -127,6 +131,7 @@ _t = _THEMES[ACTIVE_THEME]
 
 BG_ROOT        = _t["BG_ROOT"]
 BG_SURFACE     = _t["BG_SURFACE"]
+BG_ELEVATED    = _t["BG_ELEVATED"]
 BG_SURFACE_ALT = _t["BG_SURFACE_ALT"]
 BG_ROW_ODD     = _t["BG_ROW_ODD"]
 BG_ROW_EVEN    = _t["BG_ROW_EVEN"]
@@ -171,6 +176,7 @@ BTN_DANGER        = _t["BTN_DANGER"]
 BTN_DANGER_HVR    = _t["BTN_DANGER_HVR"]
 BTN_SUCCESS       = _t["BTN_SUCCESS"]
 BTN_SUCCESS_HVR   = _t["BTN_SUCCESS_HVR"]
+BTN_ADD_HVR       = _t["BTN_ADD_HVR"]
 
 CTK_MODE = _t["CTK_MODE"]
 INPUT_HIGHLIGHT = _t["INPUT_HIGHLIGHT"]

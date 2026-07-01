@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import customtkinter as ctk
 from gui import theme
+from gui.widgets import center_dialog
 
 from core.database import add_class, delete_class, get_all_classes, get_class_count, get_max_classes
 
@@ -17,12 +18,12 @@ class ClassPage(ctk.CTkFrame):
 
         self._rows: list[ctk.CTkBaseClass] = []
         self._refresh_after_id: str | None = None
+        self._add_overlay: ctk.CTkFrame | None = None
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(2, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
         self._build_header()
-        self._build_add_form()
         self._build_table()
 
         self.refresh()
@@ -48,158 +49,233 @@ class ClassPage(ctk.CTkFrame):
         )
         self.class_count_label.grid(row=1, column=0, sticky="w", pady=(4, 0))
 
+        btn_frame = ctk.CTkFrame(head, fg_color="transparent")
+        btn_frame.grid(row=0, column=1, rowspan=2, sticky="e")
+
         ctk.CTkButton(
-            head,
+            btn_frame,
+            text="+ Add Class",
+            command=self._open_add_class_dialog,
+            fg_color=theme.BTN_SUCCESS,
+            hover_color=theme.BTN_ADD_HVR,
+            width=120,
+            height=36,
+            corner_radius=6,
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            btn_frame,
             text="Refresh",
             command=self.refresh,
             fg_color=theme.ACCENT,
             hover_color=theme.ACCENT_HOVER,
-            width=110,
-            height=34,
+            width=100,
+            height=36,
             corner_radius=6,
-        ).grid(row=0, column=1, rowspan=2, sticky="e")
+        ).pack(side="left")
 
-    def _build_add_form(self) -> None:
-        form_card = ctk.CTkFrame(self, fg_color=theme.BG_SURFACE, corner_radius=10)
-        form_card.grid(row=1, column=0, sticky="ew", padx=24, pady=(4, 12))
-        for i in range(7):
-            form_card.grid_columnconfigure(i, weight=0)
-        form_card.grid_columnconfigure(1, weight=1)
-        form_card.grid_columnconfigure(3, weight=1)
+    def _open_add_class_dialog(self) -> None:
+        if self._add_overlay is not None:
+            try:
+                self._add_overlay.destroy()
+            except Exception:
+                pass
+            self._add_overlay = None
+
+        # Parent must be the root window so the overlay wins all z-order fights
+        root = self.winfo_toplevel()
+
+        card = ctk.CTkFrame(
+            root,
+            fg_color=theme.BG_SURFACE,
+            corner_radius=12,
+            border_width=1,
+            border_color=theme.BORDER,
+        )
+        self._add_overlay = card
+        card.grid_columnconfigure(0, weight=1)
+
+        def _close() -> None:
+            try:
+                card.place_forget()
+            except Exception:
+                pass
+
+        # ── title row with X ───────────────────────────────────────────────
+        title_row = ctk.CTkFrame(card, fg_color="transparent")
+        title_row.grid(row=0, column=0, sticky="ew", padx=20, pady=(16, 2))
+        title_row.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
-            form_card,
-            text="Add Class",
-            font=ctk.CTkFont(size=16, weight="bold"),
+            title_row, text="Add Class",
+            font=ctk.CTkFont(size=18, weight="bold"),
             text_color=theme.TEXT_PRIMARY,
-        ).grid(row=0, column=0, columnspan=7, sticky="w", padx=16, pady=(14, 10))
-
-        ctk.CTkLabel(form_card, text="Class Name", text_color=theme.TEXT_SECONDARY).grid(
-            row=1, column=0, sticky="w", padx=(16, 8), pady=(0, 8)
-        )
-        self.name_entry = ctk.CTkEntry(
-            form_card,
-            placeholder_text="e.g. BSc CSIT",
-            height=42,
-            fg_color=theme.BG_SURFACE_ALT,
-            border_width=0,
-            text_color=theme.TEXT_PRIMARY,
-            placeholder_text_color=theme.TEXT_MUTED,
-            corner_radius=6,
-        )
-        self.name_entry.grid(row=1, column=1, sticky="ew", padx=(0, 16), pady=(0, 8))
-
-        ctk.CTkLabel(form_card, text="Section", text_color=theme.TEXT_SECONDARY).grid(
-            row=1, column=2, sticky="w", padx=(0, 8), pady=(0, 8)
-        )
-        self.section_entry = ctk.CTkEntry(
-            form_card,
-            placeholder_text="e.g. A",
-            height=42,
-            fg_color=theme.BG_SURFACE_ALT,
-            border_width=0,
-            text_color=theme.TEXT_PRIMARY,
-            placeholder_text_color=theme.TEXT_MUTED,
-            corner_radius=6,
-        )
-        self.section_entry.grid(row=1, column=3, sticky="ew", padx=(0, 16), pady=(0, 8))
-
-        ctk.CTkLabel(form_card, text="Max Students", text_color=theme.TEXT_SECONDARY).grid(
-            row=1, column=4, sticky="w", padx=(0, 8), pady=(0, 8)
-        )
-        self.max_students_entry = ctk.CTkEntry(
-            form_card,
-            width=120,
-            height=42,
-            fg_color=theme.BG_SURFACE_ALT,
-            border_width=0,
-            text_color=theme.TEXT_PRIMARY,
-            placeholder_text_color=theme.TEXT_MUTED,
-            corner_radius=6,
-        )
-        self.max_students_entry.grid(row=1, column=5, sticky="ew", padx=(0, 16), pady=(0, 8))
-        self.max_students_entry.insert(0, "30")
+        ).grid(row=0, column=0, sticky="w")
 
         ctk.CTkButton(
-            form_card,
-            text="Add Class",
-            command=self._handle_add_class,
-            fg_color=theme.ACCENT,
-            hover_color=theme.ACCENT_HOVER,
-            height=36,
-            width=110,
-            corner_radius=6,
-        ).grid(row=1, column=6, sticky="e", padx=(0, 16), pady=(0, 8))
+            title_row, text="✕", width=28, height=28, corner_radius=6,
+            fg_color="transparent", hover_color=theme.BG_HOVER,
+            text_color=theme.TEXT_MUTED, command=_close,
+        ).grid(row=0, column=1, sticky="e")
 
-        # Late / Absent cutoff fields
-        ctk.CTkLabel(form_card, text="Late Cutoff (HH:MM)", text_color=theme.TEXT_SECONDARY).grid(
-            row=2, column=0, sticky="w", padx=(16, 8), pady=(6, 12)
-        )
-        self.late_cutoff_entry = ctk.CTkEntry(
-            form_card,
-            placeholder_text="HH:MM",
-            height=42,
-            fg_color=theme.BG_SURFACE_ALT,
-            border_width=0,
-            text_color=theme.TEXT_PRIMARY,
-            placeholder_text_color=theme.TEXT_MUTED,
-            corner_radius=6,
-        )
-        self.late_cutoff_entry.grid(row=2, column=1, sticky="ew", padx=(0, 16), pady=(6, 12))
-        self.late_cutoff_entry.insert(0, "06:30")
+        ctk.CTkLabel(
+            card, text="Fill in the details to create a new class.",
+            font=ctk.CTkFont(size=12), text_color=theme.TEXT_SECONDARY, anchor="w",
+        ).grid(row=1, column=0, sticky="w", padx=20, pady=(0, 12))
 
-        ctk.CTkLabel(form_card, text="Absent Cutoff (HH:MM)", text_color=theme.TEXT_SECONDARY).grid(
-            row=2, column=2, sticky="w", padx=(0, 8), pady=(6, 12)
-        )
-        self.absent_cutoff_entry = ctk.CTkEntry(
-            form_card,
-            placeholder_text="HH:MM",
-            height=42,
-            fg_color=theme.BG_SURFACE_ALT,
-            border_width=0,
-            text_color=theme.TEXT_PRIMARY,
-            placeholder_text_color=theme.TEXT_MUTED,
-            corner_radius=6,
-        )
-        self.absent_cutoff_entry.grid(row=2, column=3, sticky="ew", padx=(0, 16), pady=(6, 12))
-        self.absent_cutoff_entry.insert(0, "07:00")
+        # ── helpers ────────────────────────────────────────────────────────
+        def _lbl(parent, text: str) -> None:
+            ctk.CTkLabel(
+                parent, text=text,
+                font=ctk.CTkFont(size=13, weight="bold"),
+                text_color=theme.TEXT_PRIMARY, anchor="w",
+            ).grid(row=0, column=0, sticky="w", pady=(0, 4))
 
-        # Class start/end time fields
-        ctk.CTkLabel(form_card, text="Class Start (HH:MM)", text_color=theme.TEXT_SECONDARY).grid(
-            row=3, column=0, sticky="w", padx=(16, 8), pady=(0, 12)
-        )
-        self.start_time_entry = ctk.CTkEntry(
-            form_card,
-            placeholder_text="HH:MM",
-            height=42,
-            fg_color=theme.BG_SURFACE_ALT,
-            border_width=0,
-            text_color=theme.TEXT_PRIMARY,
-            placeholder_text_color=theme.TEXT_MUTED,
-            corner_radius=6,
-        )
-        self.start_time_entry.grid(row=3, column=1, sticky="ew", padx=(0, 16), pady=(0, 12))
-        self.start_time_entry.insert(0, "06:00")
+        def _entry(parent, placeholder: str = "", default: str = "") -> ctk.CTkEntry:
+            e = ctk.CTkEntry(
+                parent, height=36,
+                placeholder_text=placeholder,
+                fg_color=theme.BG_SURFACE_ALT, border_width=0,
+                text_color=theme.TEXT_PRIMARY,
+                placeholder_text_color=theme.TEXT_MUTED,
+                corner_radius=6,
+            )
+            e.grid(row=1, column=0, sticky="ew")
+            if default:
+                e.insert(0, default)
+            return e
 
-        ctk.CTkLabel(form_card, text="Class End (HH:MM)", text_color=theme.TEXT_SECONDARY).grid(
-            row=3, column=2, sticky="w", padx=(0, 8), pady=(0, 12)
+        def _col(parent, col: int, label: str, placeholder: str = "", default: str = "", padx=(0, 0)) -> ctk.CTkEntry:
+            f = ctk.CTkFrame(parent, fg_color="transparent")
+            f.grid(row=0, column=col, sticky="ew", padx=padx)
+            f.grid_columnconfigure(0, weight=1)
+            _lbl(f, label)
+            return _entry(f, placeholder, default)
+
+        # ── row: Class Name (full width) ───────────────────────────────────
+        r2 = ctk.CTkFrame(card, fg_color="transparent")
+        r2.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 10))
+        r2.grid_columnconfigure(0, weight=1)
+        _lbl(r2, "Class Name")
+        name_entry = _entry(r2, placeholder="e.g. BSc CSIT")
+
+        # ── row: Section + Max Students ────────────────────────────────────
+        r3 = ctk.CTkFrame(card, fg_color="transparent")
+        r3.grid(row=3, column=0, sticky="ew", padx=20, pady=(0, 10))
+        r3.grid_columnconfigure(0, weight=2)
+        r3.grid_columnconfigure(1, weight=1)
+        section_entry      = _col(r3, 0, "Section",      placeholder="e.g. A", padx=(0, 8))
+        max_students_entry = _col(r3, 1, "Max Students", default="30")
+
+        # ── row: Late Cutoff + Absent Cutoff ───────────────────────────────
+        r4 = ctk.CTkFrame(card, fg_color="transparent")
+        r4.grid(row=4, column=0, sticky="ew", padx=20, pady=(0, 10))
+        r4.grid_columnconfigure(0, weight=1)
+        r4.grid_columnconfigure(1, weight=1)
+        late_cutoff_entry   = _col(r4, 0, "Late Cutoff (HH:MM)",   default="06:30", padx=(0, 8))
+        absent_cutoff_entry = _col(r4, 1, "Absent Cutoff (HH:MM)", default="07:00")
+
+        # ── row: Class Start + Class End ───────────────────────────────────
+        r5 = ctk.CTkFrame(card, fg_color="transparent")
+        r5.grid(row=5, column=0, sticky="ew", padx=20, pady=(0, 10))
+        r5.grid_columnconfigure(0, weight=1)
+        r5.grid_columnconfigure(1, weight=1)
+        start_time_entry = _col(r5, 0, "Class Start (HH:MM)", default="06:00", padx=(0, 8))
+        end_time_entry   = _col(r5, 1, "Class End (HH:MM)",   default="10:00")
+
+        # ── status + actions ───────────────────────────────────────────────
+        status_var = ctk.StringVar(value="")
+        status_lbl = ctk.CTkLabel(
+            card, textvariable=status_var,
+            font=ctk.CTkFont(size=12), anchor="w", wraplength=440,
+            text_color=theme.DANGER,
         )
-        self.end_time_entry = ctk.CTkEntry(
-            form_card,
-            placeholder_text="HH:MM",
-            height=42,
-            fg_color=theme.BG_SURFACE_ALT,
-            border_width=0,
-            text_color=theme.TEXT_PRIMARY,
-            placeholder_text_color=theme.TEXT_MUTED,
-            corner_radius=6,
-        )
-        self.end_time_entry.grid(row=3, column=3, sticky="ew", padx=(0, 16), pady=(0, 12))
-        self.end_time_entry.insert(0, "10:00")
+        status_lbl.grid(row=6, column=0, sticky="w", padx=20, pady=(0, 2))
+
+        def _submit() -> None:
+            name    = name_entry.get().strip()
+            section = section_entry.get().strip()
+            max_raw = max_students_entry.get().strip()
+
+            if not name or not section:
+                status_var.set("Class name and section are required.")
+                return
+            try:
+                max_students = int(max_raw or "30")
+                if max_students <= 0:
+                    raise ValueError
+            except ValueError:
+                status_var.set("Max Students must be a positive number.")
+                return
+
+            late_raw   = late_cutoff_entry.get().strip()   or None
+            absent_raw = absent_cutoff_entry.get().strip() or None
+            start_raw  = start_time_entry.get().strip()    or None
+            end_raw    = end_time_entry.get().strip()       or None
+
+            try:
+                current_count = get_class_count()
+                max_allowed   = get_max_classes()
+                if current_count >= max_allowed:
+                    status_var.set("Class limit reached. Contact superadmin to increase limit.")
+                    return
+                add_class(
+                    name, section, self.username or "system",
+                    max_students=max_students,
+                    late_cutoff=late_raw,
+                    absent_cutoff=absent_raw,
+                    class_start_time=start_raw,
+                    class_end_time=end_raw,
+                )
+            except Exception:
+                status_var.set("Failed to add class.")
+                return
+
+            self._notify("Class added successfully.", "success")
+            _close()
+            self.refresh()
+
+        actions = ctk.CTkFrame(card, fg_color="transparent")
+        actions.grid(row=7, column=0, sticky="ew", padx=20, pady=(4, 18))
+
+        ctk.CTkButton(
+            actions, text="Cancel", command=_close,
+            fg_color=theme.BG_SURFACE_ALT, hover_color=theme.BG_HOVER,
+            text_color=theme.TEXT_SECONDARY, corner_radius=6, height=36,
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            actions, text="Add Class", command=_submit,
+            fg_color=theme.BTN_SUCCESS, hover_color=theme.BTN_ADD_HVR,
+            text_color=theme.TEXT_PRIMARY, corner_radius=6, height=36, width=120,
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).pack(side="right")
+
+        # Defer so all widgets are rendered and winfo_* values are valid
+        def _place() -> None:
+            W, H = 500, 440
+            sw = self.winfo_width()
+            sh = self.winfo_height()
+            # If self isn't mapped yet, fall back to root window dimensions
+            if sw < 20 or sh < 20:
+                sw = root.winfo_width()
+                sh = root.winfo_height()
+                x  = (sw - W) // 2
+                y  = (sh - H) // 2
+            else:
+                rx = self.winfo_rootx() - root.winfo_rootx()
+                ry = self.winfo_rooty() - root.winfo_rooty()
+                x  = rx + (sw - W) // 2
+                y  = ry + (sh - H) // 2
+            card.place(x=x, y=y, width=W, height=H)
+            card.lift()
+
+        self.after(50, _place)
 
     def _build_table(self) -> None:
         table_card = ctk.CTkFrame(self, fg_color=theme.BG_SURFACE, corner_radius=10)
-        table_card.grid(row=2, column=0, sticky="nsew", padx=24, pady=(0, 18))
+        table_card.grid(row=1, column=0, sticky="nsew", padx=24, pady=(0, 18))
         table_card.grid_columnconfigure(0, weight=1)
         table_card.grid_rowconfigure(1, weight=1)
 
@@ -240,9 +316,9 @@ class ClassPage(ctk.CTkFrame):
     def _confirm_delete_dialog(self, class_name: str) -> bool:
         dialog = ctk.CTkToplevel(self)
         dialog.title("Confirm Delete")
-        dialog.geometry("430x210")
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
+        center_dialog(dialog, 430, 210)
 
         result = {"ok": False}
 
@@ -283,75 +359,6 @@ class ClassPage(ctk.CTkFrame):
         self.wait_window(dialog)
         return bool(result["ok"])
 
-    def _handle_add_class(self) -> None:
-        name = self.name_entry.get().strip()
-        section = self.section_entry.get().strip()
-        max_students_raw = self.max_students_entry.get().strip()
-
-        if not name or not section:
-            self._notify("Class name and section are required.", "error")
-            return
-
-        try:
-            max_students = int(max_students_raw or "30")
-            if max_students <= 0:
-                raise ValueError
-        except ValueError:
-            self._notify("Max Students must be a positive number.", "error")
-            return
-
-        try:
-            current_count = get_class_count()
-            max_allowed = get_max_classes()
-            if current_count >= max_allowed:
-                self._notify(
-                    "Class limit reached. Contact superadmin to increase limit.",
-                    "error",
-                )
-                return
-
-            # collect optional cutoffs and class times
-            late_raw = None
-            absent_raw = None
-            start_raw = None
-            end_raw = None
-            try:
-                late_raw = (self.late_cutoff_entry.get() or "").strip() or None
-            except Exception:
-                late_raw = None
-            try:
-                absent_raw = (self.absent_cutoff_entry.get() or "").strip() or None
-            except Exception:
-                absent_raw = None
-            try:
-                start_raw = (self.start_time_entry.get() or "").strip() or None
-            except Exception:
-                start_raw = None
-            try:
-                end_raw = (self.end_time_entry.get() or "").strip() or None
-            except Exception:
-                end_raw = None
-
-            add_class(
-                name,
-                section,
-                self.username or "system",
-                max_students=max_students,
-                late_cutoff=late_raw,
-                absent_cutoff=absent_raw,
-                class_start_time=start_raw,
-                class_end_time=end_raw,
-            )
-        except Exception:
-            self._notify("Failed to add class.", "error")
-            return
-
-        self.name_entry.delete(0, "end")
-        self.section_entry.delete(0, "end")
-        self.max_students_entry.delete(0, "end")
-        self.max_students_entry.insert(0, "30")
-        self._notify("Class added successfully.", "success")
-        self.refresh()
 
     def _handle_delete_class(self, class_id: int, class_name: str) -> None:
         if not self._confirm_delete_dialog(class_name):

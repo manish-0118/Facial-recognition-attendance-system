@@ -6,6 +6,9 @@ import cv2 # pyright: ignore[reportMissingImports]
 from datetime import datetime
 
 from core.database import mark_attendance, get_all_students, get_class_cutoffs
+from core.logger import get_logger
+
+_log = get_logger(__name__)
 
 _BASE = os.path.dirname(os.path.abspath(__file__))
 _DETECTOR_PATH = os.path.join(_BASE, 'models', 'face_detection_yunet_2023mar.onnx')
@@ -50,7 +53,8 @@ def take_attendance_session(class_id):
 
     enc_path = os.path.join(_TRAINER_DIR, f"{class_id}_encodings.pkl")
     if not os.path.exists(enc_path):
-        print(f"Encodings not found for class {class_id}")
+        _log.error("take_attendance: encodings not found for class_id=%s at %s", class_id, enc_path)
+        print(f"ERROR: Encodings not found for class {class_id}", file=sys.stderr)
         return
 
     with open(enc_path, 'rb') as f:
@@ -64,7 +68,8 @@ def take_attendance_session(class_id):
     cap.set(cv2.CAP_PROP_FPS, 30)
 
     if not cap.isOpened():
-        print("Could not open webcam")
+        _log.error("take_attendance: could not open webcam for class_id=%s", class_id)
+        print("ERROR: Could not open webcam", file=sys.stderr)
         return
 
     detector = cv2.FaceDetectorYN.create(
@@ -131,8 +136,8 @@ def take_attendance_session(class_id):
                                 inserted = mark_attendance(sid, display_name, class_id, status)
                                 if inserted:
                                     marked.add(sid)
-                            except Exception as e:
-                                print(f"Failed to mark {sid}: {e}")
+                            except Exception:
+                                _log.exception("take_attendance: failed to mark attendance for sid=%s class_id=%s", sid, class_id)
                     else:
                         cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 0, 255), 2)
                         cv2.putText(frame, "Unknown",

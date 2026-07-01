@@ -6,6 +6,7 @@ import traceback
 
 import customtkinter as ctk # pyright: ignore[reportMissingImports]
 from gui import theme
+from gui.widgets import center_dialog
 from tkinter import filedialog
 
 from core.database import (
@@ -57,8 +58,13 @@ class RecordsPage(ctk.CTkFrame):
         # top-level frames for two-level UI
         self.level1_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.level1_frame.grid(row=0, column=0, sticky="nsew")
+        self.level1_frame.grid_columnconfigure(0, weight=1)
+        self.level1_frame.grid_rowconfigure(0, weight=1)
         self.level2_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.level2_frame.grid(row=0, column=0, sticky="nsew")
+        self.level2_frame.grid_columnconfigure(0, weight=1)
+        self.level2_frame.grid_rowconfigure(0, weight=0)
+        self.level2_frame.grid_rowconfigure(1, weight=1)
         self.level2_frame.grid_remove()
 
         self.grid_columnconfigure(0, weight=1)
@@ -77,6 +83,7 @@ class RecordsPage(ctk.CTkFrame):
         card.grid(row=0, column=0, sticky="nsew", padx=60, pady=20)
         card.grid_columnconfigure(0, weight=3)
         card.grid_columnconfigure(1, weight=2)
+        card.grid_rowconfigure(0, weight=1)
 
         # left side (60%) - controls + table
         left = ctk.CTkFrame(card, fg_color="transparent")
@@ -129,9 +136,12 @@ class RecordsPage(ctk.CTkFrame):
         self.next_btn.grid(row=0, column=2)
 
         # table area
+        left.grid_rowconfigure(3, weight=1)
         table_card = ctk.CTkFrame(left, fg_color=theme.BG_SURFACE, corner_radius=0)
         table_card.grid(row=3, column=0, sticky="nsew", pady=(6, 0))
         table_card.grid_columnconfigure(0, weight=1)
+        table_card.grid_rowconfigure(0, weight=0)
+        table_card.grid_rowconfigure(1, weight=1)
         # header row
         header_row = ctk.CTkFrame(table_card, fg_color=theme.BG_SURFACE)
         header_row.grid(row=0, column=0, sticky="ew", padx=4, pady=(6, 4))
@@ -354,6 +364,7 @@ class RecordsPage(ctk.CTkFrame):
         card.grid(row=1, column=0, sticky="nsew", padx=40, pady=12)
         card.grid_columnconfigure(0, weight=3)
         card.grid_columnconfigure(1, weight=2)
+        card.grid_rowconfigure(0, weight=1)
 
         # left: filters + table
         left = ctk.CTkFrame(card, fg_color="transparent")
@@ -373,9 +384,11 @@ class RecordsPage(ctk.CTkFrame):
         filter_btn.grid(row=0, column=3, padx=6)
 
         # history area (table)
+        left.grid_rowconfigure(1, weight=1)
         table_card = ctk.CTkFrame(left, fg_color="#1E1E1E")
         table_card.grid(row=1, column=0, sticky="nsew", pady=(6, 0))
         table_card.grid_columnconfigure(0, weight=1)
+        table_card.grid_rowconfigure(0, weight=1)
         self._student_scroll = ctk.CTkScrollableFrame(table_card, fg_color="transparent")
         self._student_scroll.grid(row=0, column=0, sticky="nsew", padx=4, pady=4)
 
@@ -459,7 +472,7 @@ class RecordsPage(ctk.CTkFrame):
     def _show_custom_filter(self) -> None:
         win = ctk.CTkToplevel(self)
         win.title("Custom Filter")
-        win.geometry("360x120")
+        center_dialog(win, 360, 180)
         ctk.CTkLabel(win, text="From (YYYY-MM-DD)").pack(padx=8, pady=(8, 2))
         from_entry = ctk.CTkEntry(
             win,

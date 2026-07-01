@@ -1,17 +1,41 @@
 from __future__ import annotations
 
 import calendar as _cal_mod
+import os as _os
 import tkinter as tk
 import customtkinter as ctk
 from datetime import date
 
 from gui import theme
 
+_FAVICON = _os.path.abspath(_os.path.join(
+    _os.path.dirname(_os.path.dirname(__file__)), "assets", "favicon.ico"
+))
+
 try:
     from PIL import Image as _PIL_Image, ImageDraw as _PIL_Draw
     _PIL_OK = True
 except ImportError:
     _PIL_OK = False
+
+
+def center_dialog(dialog, width: int, height: int) -> None:
+    """Size and center a CTkToplevel on the root window, themed to BG_SURFACE."""
+    try:
+        root = dialog.master.winfo_toplevel()
+        x = root.winfo_rootx() + (root.winfo_width()  - width)  // 2
+        y = root.winfo_rooty() + (root.winfo_height() - height) // 2
+    except Exception:
+        x = (dialog.winfo_screenwidth()  - width)  // 2
+        y = (dialog.winfo_screenheight() - height) // 2
+    dialog.geometry(f"{width}x{height}+{x}+{y}")
+    try:
+        dialog.configure(fg_color=theme.BG_SURFACE)
+    except Exception:
+        pass
+    # CTkToplevel schedules its own icon override at ~200 ms; fire at 250 ms to win.
+    if _os.path.isfile(_FAVICON):
+        dialog.after(250, lambda: dialog.iconbitmap(_FAVICON))
 
 
 def make_eye_image(size: int, color: str, slashed: bool = False):
@@ -290,7 +314,7 @@ class ThemedDropdown(ctk.CTkFrame):
                 scrollbar_button_color=theme.BORDER,
                 scrollbar_button_hover_color=theme.INPUT_HIGHLIGHT,
             )
-            scroll.pack(fill="x")
+            scroll.pack(fill="both", expand=True)
             parent = scroll
         else:
             parent = popup
@@ -438,6 +462,7 @@ class ThemedRangePicker(ctk.CTkFrame):
         on_change=None,
         initial_from: date | None = None,
         initial_to:   date | None = None,
+        height: int = 36,
         **kwargs,
     ) -> None:
         super().__init__(master, fg_color="transparent", **kwargs)
@@ -446,6 +471,7 @@ class ThemedRangePicker(ctk.CTkFrame):
         self._from_date = initial_from
         self._to_date   = initial_to
         self._selecting = "from"
+        self._btn_height = height
 
         self._popup:    tk.Frame | None = None
         self._root_bid: str | None = None
@@ -474,7 +500,7 @@ class ThemedRangePicker(ctk.CTkFrame):
         row.grid_columnconfigure(2, weight=1)
 
         self._from_btn = ctk.CTkButton(
-            row, text="", height=38,
+            row, text="", height=self._btn_height,
             fg_color=theme.INPUT_BG, hover_color=theme.INPUT_HIGHLIGHT,
             text_color=theme.TEXT_MUTED, border_width=1, border_color=theme.BORDER,
             corner_radius=8, anchor="w", font=ctk.CTkFont(size=13),
@@ -488,7 +514,7 @@ class ThemedRangePicker(ctk.CTkFrame):
         ).grid(row=0, column=1, padx=6)
 
         self._to_btn = ctk.CTkButton(
-            row, text="", height=38,
+            row, text="", height=self._btn_height,
             fg_color=theme.INPUT_BG, hover_color=theme.INPUT_HIGHLIGHT,
             text_color=theme.TEXT_MUTED, border_width=1, border_color=theme.BORDER,
             corner_radius=8, anchor="w", font=ctk.CTkFont(size=13),
@@ -929,24 +955,416 @@ class ThemedRangePicker(ctk.CTkFrame):
             self._render_month()
 
 
+# ── SingleDatePicker ──────────────────────────────────────────────────────────
+
+class SingleDatePicker(ctk.CTkFrame):
+    """
+    Compact single-date selector.
+
+    Renders as one button showing the chosen date (or a placeholder).
+    Clicking opens a floating calendar popup; clicking a day immediately
+    selects it and closes the popup — no Apply step needed.
+
+    Public API
+    ----------
+    get_date()  -> date | None
+    set_date(d: date | None)
+    """
+
+    _POPUP_W = 340
+    _POPUP_H = 320
+    _CELL_W  = 40
+    _CELL_H  = 34
+
+    def __init__(
+        self,
+        master,
+        placeholder: str = "Select date",
+        initial_date: date | None = None,
+        on_change=None,
+        height: int = 36,
+        **kwargs,
+    ) -> None:
+        super().__init__(master, fg_color="transparent", **kwargs)
+        self._selected: date | None = None
+        self._on_change = on_change
+        self._popup: tk.Frame | None = None
+        self._outside_bid: str | None = None
+        self._year  = date.today().year
+        self._month = date.today().month
+        self._placeholder = placeholder
+        self._year_mode:       bool = False
+        self._prev_btn        = None
+        self._next_btn        = None
+        self._month_name_lbl  = None
+        self._year_lbl        = None
+
+        self.grid_columnconfigure(0, weight=1)
+
+        self._btn = ctk.CTkButton(
+            self,
+            text=placeholder,
+            height=height,
+            fg_color=theme.BG_SURFACE_ALT,
+            hover_color=theme.INPUT_HIGHLIGHT,
+            text_color=theme.TEXT_MUTED,
+            anchor="w",
+            corner_radius=6,
+            command=self._toggle,
+        )
+        self._btn.grid(row=0, column=0, sticky="ew")
+
+        if initial_date is not None:
+            self._selected = initial_date
+            self._year  = initial_date.year
+            self._month = initial_date.month
+            self._btn.configure(
+                text=initial_date.strftime("%d %B %Y"),
+                text_color=theme.TEXT_PRIMARY,
+            )
+
+    # ── toggle / open / close ────────────────────────────────────────────────
+
+    def _toggle(self) -> None:
+        if self._popup is not None:
+            self._close()
+        else:
+            self._open()
+
+    def _open(self) -> None:
+        if self._popup is not None:
+            return
+
+        root = self.winfo_toplevel()
+        self._btn.update_idletasks()
+
+        popup = tk.Frame(
+            root,
+            bg=theme.BG_SURFACE,
+            highlightbackground=theme.BORDER,
+            highlightthickness=1,
+            bd=0,
+        )
+        self._popup = popup
+
+        # ── month nav ────────────────────────────────────────────────────────
+        # Columns: 0=prev  1=spacer(weight)  2=month_name  3=year_btn  4=spacer(weight)  5=next
+        nav = tk.Frame(popup, bg=theme.BG_SURFACE)
+        nav.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 4))
+        nav.grid_columnconfigure(1, weight=1)
+        nav.grid_columnconfigure(4, weight=1)
+
+        self._prev_btn = ctk.CTkButton(
+            nav, text="‹", width=30, height=28, corner_radius=6,
+            fg_color=theme.BG_SURFACE_ALT, hover_color=theme.BG_HOVER,
+            command=self._prev_month,
+        )
+        self._prev_btn.grid(row=0, column=0)
+
+        self._month_name_lbl = tk.Label(
+            nav, bg=theme.BG_SURFACE, fg=theme.TEXT_PRIMARY,
+            font=("Segoe UI", 13, "bold"),
+        )
+        self._month_name_lbl.grid(row=0, column=2)
+
+        self._year_lbl = tk.Label(
+            nav, bg=theme.BG_SURFACE_ALT, fg=theme.TEXT_PRIMARY,
+            font=("Segoe UI", 12, "bold"), cursor="hand2",
+            padx=7, pady=1,
+        )
+        self._year_lbl.grid(row=0, column=3, padx=(6, 0))
+        self._year_lbl.bind("<Button-1>", lambda _e: self._toggle_year_mode())
+        self._year_lbl.bind("<Enter>", lambda _e: self._year_lbl.configure(bg=theme.BG_HOVER))
+        self._year_lbl.bind("<Leave>", lambda _e: self._year_lbl.configure(
+            bg=theme.BG_HOVER if self._year_mode else theme.BG_SURFACE_ALT))
+
+        self._next_btn = ctk.CTkButton(
+            nav, text="›", width=30, height=28, corner_radius=6,
+            fg_color=theme.BG_SURFACE_ALT, hover_color=theme.BG_HOVER,
+            command=self._next_month,
+        )
+        self._next_btn.grid(row=0, column=5)
+
+        # ── calendar grid  (DOW headers are row 0; days are rows 1-6) ──────────
+        self._grid = tk.Frame(popup, bg=theme.BG_SURFACE)
+        self._grid.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
+
+        self._render_month()
+
+        # ── position popup ───────────────────────────────────────────────────
+        tx = self._btn.winfo_rootx() - root.winfo_rootx()
+        ty = self._btn.winfo_rooty() - root.winfo_rooty()
+        tw = self._btn.winfo_width()
+        th = self._btn.winfo_height()
+        rh, rw = root.winfo_height(), root.winfo_width()
+
+        y = ty + th + 4
+        if y + self._POPUP_H > rh:
+            y = max(0, ty - self._POPUP_H - 4)
+        x = tx + tw // 2 - self._POPUP_W // 2
+        x = max(0, min(x, rw - self._POPUP_W))
+
+        popup.place(x=x, y=y, width=self._POPUP_W)
+        popup.lift()
+        root.after(10, lambda: popup.lift() if self._popup is popup else None)
+
+        def _outside(event: tk.Event) -> None:
+            if not self._popup:
+                return
+            try:
+                bx, by = self._btn.winfo_rootx(), self._btn.winfo_rooty()
+                bw, bh = self._btn.winfo_width(), self._btn.winfo_height()
+                if bx <= event.x_root <= bx + bw and by <= event.y_root <= by + bh:
+                    return
+                px, py = self._popup.winfo_rootx(), self._popup.winfo_rooty()
+                pw, ph = self._popup.winfo_width(), self._popup.winfo_height()
+                if px <= event.x_root <= px + pw and py <= event.y_root <= py + ph:
+                    return
+            except Exception:
+                pass
+            self._close()
+
+        self._outside_bid = root.bind("<ButtonPress-1>", _outside, add="+")
+
+    def _close(self) -> None:
+        self._year_mode = False
+        self._prev_btn = self._next_btn = None
+        self._month_name_lbl = self._year_lbl = None
+        self._grid = None
+        popup, self._popup = self._popup, None
+        if popup:
+            try:
+                popup.place_forget()
+                popup.destroy()
+            except Exception:
+                pass
+        bid, self._outside_bid = self._outside_bid, None
+        if bid:
+            try:
+                self.winfo_toplevel().unbind("<ButtonPress-1>", bid)
+            except Exception:
+                pass
+
+    # ── calendar rendering ───────────────────────────────────────────────────
+
+    def _render_month(self) -> None:
+        if not self._grid:
+            return
+        for w in list(self._grid.children.values()):
+            try:
+                w.destroy()
+            except Exception:
+                pass
+
+        self._year_mode = False
+        if self._prev_btn:
+            self._prev_btn.configure(command=self._prev_month)
+            self._prev_btn.grid()
+        if self._next_btn:
+            self._next_btn.configure(command=self._next_month)
+            self._next_btn.grid()
+        if self._month_name_lbl:
+            self._month_name_lbl.configure(text=_cal_mod.month_name[self._month])
+        if self._year_lbl:
+            self._year_lbl.configure(text=str(self._year), fg=theme.TEXT_PRIMARY,
+                                     bg=theme.BG_SURFACE_ALT)
+
+        for col in range(7):
+            self._grid.grid_columnconfigure(col, minsize=self._CELL_W, weight=0)
+
+        # DOW headers — same frame, same column widths, row 0
+        for col, d in enumerate(("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")):
+            tk.Label(
+                self._grid, text=d, bg=theme.BG_SURFACE, fg=theme.TEXT_MUTED,
+                font=("Segoe UI", 10), width=4, anchor="center",
+            ).grid(row=0, column=col, pady=(0, 2))
+
+        today_d = date.today()
+        weeks = _cal_mod.monthcalendar(self._year, self._month)
+        while len(weeks) < 6:
+            weeks.append([0] * 7)
+
+        for r, week in enumerate(weeks):
+            self._grid.grid_rowconfigure(r + 1, minsize=self._CELL_H)
+            for c, day in enumerate(week):
+                if day == 0:
+                    tk.Frame(
+                        self._grid, bg=theme.BG_SURFACE,
+                        width=self._CELL_W, height=self._CELL_H,
+                    ).grid(row=r + 1, column=c)
+                    continue
+                d = date(self._year, self._month, day)
+                is_sel   = (self._selected == d)
+                is_today = (d == today_d)
+
+                bg = theme.ACCENT if is_sel else (theme.ACCENT_SUBTLE if is_today else theme.BG_SURFACE)
+                fg = "#FFFFFF" if is_sel else theme.TEXT_PRIMARY
+
+                lbl = tk.Label(
+                    self._grid, text=str(day),
+                    bg=bg, fg=fg,
+                    font=("Segoe UI", 12, "bold" if is_sel or is_today else "normal"),
+                    width=3, height=1, cursor="hand2",
+                )
+                lbl.grid(row=r + 1, column=c, padx=2, pady=2)
+                lbl.bind("<Button-1>", lambda _e, dd=d: self._select(dd))
+                hover_bg = theme.ACCENT if is_sel else theme.BG_HOVER
+                lbl.bind("<Enter>", lambda _e, l=lbl: l.configure(bg=hover_bg))
+                lbl.bind("<Leave>", lambda _e, l=lbl, b=bg: l.configure(bg=b))
+
+    # ── year-picker mode ─────────────────────────────────────────────────────
+
+    def _toggle_year_mode(self) -> None:
+        if self._year_mode:
+            self._render_month()
+        else:
+            self._year_mode = True
+            self._show_year_grid()
+
+    def _show_year_grid(self) -> None:
+        if not self._grid:
+            return
+
+        # Hide nav arrows; update header
+        if self._prev_btn:
+            self._prev_btn.grid_remove()
+        if self._next_btn:
+            self._next_btn.grid_remove()
+        if self._month_name_lbl:
+            self._month_name_lbl.configure(text="Select Year")
+        if self._year_lbl:
+            self._year_lbl.configure(text=str(self._year), fg=theme.TEXT_PRIMARY,
+                                     bg=theme.BG_HOVER)
+
+        # Clear previous content
+        for w in list(self._grid.children.values()):
+            try:
+                w.destroy()
+            except Exception:
+                pass
+
+        # Single expanding column for the scroll frame
+        for c in range(7):
+            self._grid.grid_columnconfigure(c, weight=0, minsize=0)
+        self._grid.grid_columnconfigure(0, weight=1)
+
+        years = list(range(date.today().year + 1, 1899, -1))
+
+        # CTkScrollableFrame provides a themed scrollbar — no native tk.Scrollbar
+        scroll = ctk.CTkScrollableFrame(
+            self._grid,
+            fg_color=theme.BG_SURFACE,
+            scrollbar_button_color=theme.BG_SURFACE_ALT,
+            scrollbar_button_hover_color=theme.ACCENT,
+            height=160,
+            corner_radius=6,
+        )
+        scroll.grid(row=0, column=0, sticky="ew", pady=(4, 4))
+        scroll.grid_columnconfigure(0, weight=1)
+
+        for y in years:
+            is_sel = (y == self._year)
+            bg  = theme.ACCENT      if is_sel else theme.BG_SURFACE
+            fg  = "#FFFFFF"         if is_sel else theme.TEXT_PRIMARY
+            fnt = ("Segoe UI", 13, "bold") if is_sel else ("Segoe UI", 13)
+
+            lbl = tk.Label(
+                scroll,
+                text=str(y),
+                bg=bg, fg=fg,
+                font=fnt,
+                cursor="hand2",
+                anchor="center",
+                height=1,
+            )
+            lbl.pack(fill="x", padx=6, pady=2)
+
+            if not is_sel:
+                lbl.bind("<Enter>", lambda _e, l=lbl: l.configure(bg=theme.BG_HOVER))
+                lbl.bind("<Leave>", lambda _e, l=lbl: l.configure(bg=theme.BG_SURFACE))
+            lbl.bind("<Button-1>", lambda _e, yr=y: self._select_year(yr))
+
+        # Scroll so selected year is visible near the top of the viewport
+        if self._year in years:
+            idx = years.index(self._year)
+            total = len(years)
+            frac = max(0.0, (idx - 3) / total)
+
+            def _scroll_to(_c=scroll, _f=frac):
+                try:
+                    _c._parent_canvas.yview_moveto(_f)
+                except Exception:
+                    pass
+
+            self._grid.after(20, _scroll_to)
+
+    def _select_year(self, year: int) -> None:
+        self._year = year
+        self._render_month()
+
+    # ── month navigation ──────────────────────────────────────────────────────
+
+    def _prev_month(self) -> None:
+        self._month -= 1
+        if self._month < 1:
+            self._month = 12
+            self._year -= 1
+        self._render_month()
+
+    def _next_month(self) -> None:
+        self._month += 1
+        if self._month > 12:
+            self._month = 1
+            self._year += 1
+        self._render_month()
+
+    def _select(self, d: date) -> None:
+        self._selected = d
+        self._btn.configure(
+            text=d.strftime("%d %B %Y"),
+            text_color=theme.TEXT_PRIMARY,
+        )
+        self._close()
+        if self._on_change:
+            try:
+                self._on_change(d)
+            except Exception:
+                pass
+
+    # ── public API ───────────────────────────────────────────────────────────
+
+    def get_date(self) -> date | None:
+        return self._selected
+
+    def set_date(self, d: date | None) -> None:
+        self._selected = d
+        if d:
+            self._btn.configure(
+                text=d.strftime("%d %B %Y"),
+                text_color=theme.TEXT_PRIMARY,
+            )
+        else:
+            self._btn.configure(
+                text=self._placeholder,
+                text_color=theme.TEXT_MUTED,
+            )
+
+
 # ── AutoScrollFrame ───────────────────────────────────────────────────────────
 
 class AutoScrollFrame(tk.Frame):
     """
     Scrollable container backed by a tk.Canvas.
 
-    The vertical scrollbar is hidden when all content fits; it appears only
-    when the content height exceeds the visible area.  The inner frame always
-    expands to fill the full canvas width, and fills the full canvas height
-    when there is no overflow (so child pages with weight=1 rows expand
-    normally).
+    The vertical scrollbar is hidden when content fits; it appears only when
+    the inner height exceeds the visible area.  The inner frame fills the full
+    canvas width and height when there is no overflow (so pages with weight=1
+    rows expand normally).
 
-    Usage
-    -----
-    wrapper = AutoScrollFrame(parent, bg=theme.BG_ROOT)
-    wrapper.grid(...)
-    # place content inside wrapper.inner
-    some_widget.grid(in_=wrapper.inner, ...)
+    Mousewheel is active whenever the cursor is anywhere inside this widget,
+    regardless of which child widget it is over.  The handler is bound to the
+    toplevel with add="+" so other scroll areas (e.g. CTkScrollableFrame
+    inside a page) keep their own bindings.
     """
 
     def __init__(self, master, bg: str = theme.BG_ROOT, **kwargs) -> None:
@@ -961,23 +1379,19 @@ class AutoScrollFrame(tk.Frame):
         self._scrollbar = tk.Scrollbar(
             self, orient="vertical", command=self._canvas.yview,
         )
-        # scrollbar starts hidden
+        self._canvas.configure(yscrollcommand=self._scrollbar.set)
 
         self.inner = tk.Frame(self._canvas, bg=bg)
         self._win_id = self._canvas.create_window(
             (0, 0), window=self.inner, anchor="nw",
         )
 
-        self._canvas.configure(yscrollcommand=self._on_yscroll)
         self.inner.bind("<Configure>", lambda _e: self._sync())
         self._canvas.bind("<Configure>", lambda _e: self._sync())
-
-        # Mousewheel: bind globally while cursor is inside the scroll area
-        for w in (self._canvas, self.inner):
-            w.bind("<Enter>", self._mouse_enter, add="+")
-            w.bind("<Leave>", self._mouse_leave, add="+")
+        self.bind("<Destroy>", self._on_destroy)
 
         self._sb_shown = False
+        self._wheel_bid: str | None = None  # funcid for targeted unbind
 
     # ── layout sync ──────────────────────────────────────────────────────────
 
@@ -990,42 +1404,55 @@ class AutoScrollFrame(tk.Frame):
             return
 
         if ih > ch:
-            # Content overflows → show scrollbar, let inner use its natural height
+            # Overflow: show scrollbar, give inner its natural height
             self._canvas.itemconfig(self._win_id, width=cw, height=ih)
             self._canvas.configure(scrollregion=(0, 0, cw, ih))
             if not self._sb_shown:
                 self._scrollbar.grid(row=0, column=1, sticky="ns")
                 self._sb_shown = True
+                self._bind_wheel()
         else:
-            # Content fits → hide scrollbar, stretch inner to fill canvas height
+            # Fits: hide scrollbar, stretch inner to fill canvas
             self._canvas.itemconfig(self._win_id, width=cw, height=ch)
             self._canvas.configure(scrollregion=(0, 0, cw, ch))
             self._canvas.yview_moveto(0)
             if self._sb_shown:
                 self._scrollbar.grid_forget()
                 self._sb_shown = False
-
-    def _on_yscroll(self, first: str, last: str) -> None:
-        self._scrollbar.set(first, last)
+                self._unbind_wheel()
 
     # ── mousewheel ───────────────────────────────────────────────────────────
 
-    def _mouse_enter(self, _e=None) -> None:
-        if self._sb_shown:
-            self._canvas.bind_all("<MouseWheel>", self._on_wheel)
+    def _bind_wheel(self) -> None:
+        if self._wheel_bid is not None:
+            return
+        try:
+            # Bind to toplevel with add="+" so other scroll areas keep theirs
+            self._wheel_bid = self.winfo_toplevel().bind(
+                "<MouseWheel>", self._on_wheel, add="+",
+            )
+        except Exception:
+            pass
 
-    def _mouse_leave(self, _e=None) -> None:
+    def _unbind_wheel(self) -> None:
+        bid, self._wheel_bid = self._wheel_bid, None
+        if bid is None:
+            return
+        try:
+            self.winfo_toplevel().unbind("<MouseWheel>", bid)
+        except Exception:
+            pass
+
+    def _on_wheel(self, event) -> None:
         if not self._sb_shown:
             return
         try:
             px, py = self.winfo_pointerxy()
             x0, y0 = self.winfo_rootx(), self.winfo_rooty()
-            if not (x0 <= px <= x0 + self.winfo_width()
-                    and y0 <= py <= y0 + self.winfo_height()):
-                self._canvas.unbind_all("<MouseWheel>")
+            if x0 <= px <= x0 + self.winfo_width() and y0 <= py <= y0 + self.winfo_height():
+                self._canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
         except Exception:
-            self._canvas.unbind_all("<MouseWheel>")
+            pass
 
-    def _on_wheel(self, event) -> None:
-        if self._sb_shown:
-            self._canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+    def _on_destroy(self, _e=None) -> None:
+        self._unbind_wheel()

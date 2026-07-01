@@ -17,6 +17,7 @@ __pycache__/
 
 # Trained models and dataset (large files)
 dataset/
+trainer/*.pkl
 
 # Backups
 backups/
@@ -50,4 +51,8 @@ build/
 attendance/*.pdf
 attendance/*.csv
 attendance/*.xlsx
+
+# Planning / scratch docs (not for repo)
+class_diagram_prompt.md
+techstack.md
 

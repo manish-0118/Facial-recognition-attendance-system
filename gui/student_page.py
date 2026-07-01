@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import customtkinter as ctk # pyright: ignore[reportMissingImports]
 from gui import theme
+from gui.widgets import center_dialog
 
 from tkinter import filedialog
 import io
@@ -302,9 +303,9 @@ class StudentPage(ctk.CTkFrame):
     def _confirm_delete_dialog(self, student_name: str, student_id: str) -> bool:
         dialog = ctk.CTkToplevel(self)
         dialog.title("Confirm Delete")
-        dialog.geometry("440x220")
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
+        center_dialog(dialog, 440, 220)
 
         result = {"ok": False}
 
@@ -348,9 +349,9 @@ class StudentPage(ctk.CTkFrame):
     def _open_update_photo_popup(self, student_id: str) -> None:
         dialog = ctk.CTkToplevel(self)
         dialog.title("Update Profile Photo")
-        dialog.geometry("420x300")
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
+        center_dialog(dialog, 420, 300)
 
         frame = ctk.CTkFrame(dialog, fg_color=theme.BG_SURFACE)
         frame.pack(fill="both", expand=True, padx=12, pady=12)
@@ -389,9 +390,9 @@ class StudentPage(ctk.CTkFrame):
 
             cam_dlg = ctk.CTkToplevel(dialog)
             cam_dlg.title("Capture Photo")
-            cam_dlg.geometry("520x420")
             cam_dlg.transient(dialog)
             cam_dlg.grab_set()
+            center_dialog(cam_dlg, 520, 420)
             video_label = ctk.CTkLabel(cam_dlg, text="", fg_color="#000000")
             video_label.pack(fill="both", expand=True, padx=8, pady=8)
 

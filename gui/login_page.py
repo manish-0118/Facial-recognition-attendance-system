@@ -3,6 +3,7 @@ from __future__ import annotations
 import customtkinter as ctk
 
 from core.database import verify_admin
+from core.errors import DatabaseUnavailableError, LOGIN_DB_ERROR
 from gui import theme
 from gui.widgets import make_eye_image as _make_eye_image
 
@@ -56,7 +57,7 @@ class LoginPage(ctk.CTkFrame):
             fg_color=theme.BG_SURFACE_ALT,
             border_width=0,
             text_color=theme.TEXT_PRIMARY,
-            placeholder_text_color=theme.TEXT_MUTED,
+            placeholder_text_color=theme.TEXT_SECONDARY,
             corner_radius=6,
         )
         self.username_entry.grid(row=3, column=0, padx=32, pady=(0, 18), sticky="ew")
@@ -87,7 +88,7 @@ class LoginPage(ctk.CTkFrame):
             fg_color=theme.BG_SURFACE_ALT,
             border_width=0,
             text_color=theme.TEXT_PRIMARY,
-            placeholder_text_color=theme.TEXT_MUTED,
+            placeholder_text_color=theme.TEXT_SECONDARY,
             corner_radius=0,
         )
         self.password_entry.grid(row=0, column=0, sticky="ew")
@@ -144,8 +145,8 @@ class LoginPage(ctk.CTkFrame):
         self._error_label.grid(row=7, column=0, padx=32, pady=(0, 32), sticky="ew")
 
         # ── key bindings ──────────────────────────────────────────────────
-        self.username_entry.bind("<Return>", lambda _e: self.handle_login())
-        self.password_entry.bind("<Return>", lambda _e: self.handle_login())
+        self.username_entry.bind("<Return>", lambda _e: self._on_username_return())
+        self.password_entry.bind("<Return>", lambda _e: self._on_password_return())
 
     def _toggle_password(self) -> None:
         if self.password_entry.cget("show") == "":
@@ -165,15 +166,18 @@ class LoginPage(ctk.CTkFrame):
 
     def reset_for_show(self, status_message: str = "") -> None:
         self._error_var.set("")
-        # Clear both fields to remove any saved/remembered credentials
-        try:
-            self.username_entry.delete(0, "end")
-        except Exception:
-            pass
-        try:
-            self.password_entry.delete(0, "end")
-        except Exception:
-            pass
+        # Clear both fields and restore placeholders.
+        # CTkEntry.delete() skips _activate_placeholder when _is_focused=True (its initial state),
+        # so call _activate_placeholder explicitly to guarantee placeholders re-appear.
+        for entry in (self.username_entry, self.password_entry):
+            try:
+                entry.delete(0, "end")
+            except Exception:
+                pass
+            try:
+                entry._activate_placeholder()
+            except Exception:
+                pass
 
         # Ensure password is masked and eye icon reset
         try:
@@ -188,10 +192,35 @@ class LoginPage(ctk.CTkFrame):
         except Exception:
             pass
 
-        self.username_entry.focus()
+        self.after(50, self._focus_username_entry)
+
+    @staticmethod
+    def _focus_entry(ctk_entry) -> None:
+        inner = getattr(ctk_entry, '_entry', None) or getattr(ctk_entry, 'entry', None)
+        if inner is not None:
+            inner.focus_force()
+        else:
+            ctk_entry.focus_force()
+
+    def _focus_username_entry(self) -> None:
+        self._focus_entry(self.username_entry)
 
     def focus_username(self) -> None:
-        self.username_entry.focus()
+        self._focus_username_entry()
+
+    # ── key routing ───────────────────────────────────────────────────────
+
+    def _on_username_return(self) -> None:
+        if not self.password_entry.get():
+            self._focus_entry(self.password_entry)
+        else:
+            self.handle_login()
+
+    def _on_password_return(self) -> None:
+        if not self.username_entry.get().strip():
+            self._focus_entry(self.username_entry)
+        else:
+            self.handle_login()
 
     # ── login logic ───────────────────────────────────────────────────────
 
@@ -204,11 +233,15 @@ class LoginPage(ctk.CTkFrame):
             self._error_var.set("Please enter both username and password.")
             return
 
-        role = verify_admin(username, password)
+        try:
+            role = verify_admin(username, password)
+        except DatabaseUnavailableError:
+            self._error_var.set(LOGIN_DB_ERROR)
+            return
         if role is None:
             self._error_var.set("Invalid username or password.")
             self.password_entry.delete(0, "end")
-            self.password_entry.focus()
+            self._focus_entry(self.password_entry)
             return
 
         self.on_login_success(username, role)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import customtkinter as ctk
 from core.database import add_admin, delete_admin, get_all_admins, log_action
 from gui import theme
-from gui.widgets import ThemedDropdown
+from gui.widgets import ThemedDropdown, make_eye_image as _make_eye_image, center_dialog
 
 
 class AdminPage(ctk.CTkFrame):
@@ -56,14 +56,30 @@ class AdminPage(ctk.CTkFrame):
         )
         self.username_entry.grid(row=1, column=0, sticky="ew", padx=22, pady=(0, 10))
 
+        # Build eye icons once, shared by both toggle buttons
+        _eye_pil       = _make_eye_image(18, theme.TEXT_MUTED, slashed=False)
+        _eye_slash_pil = _make_eye_image(18, theme.TEXT_MUTED, slashed=True)
+        if _eye_pil is not None:
+            self._icon_eye       = ctk.CTkImage(light_image=_eye_pil,       dark_image=_eye_pil,       size=(18, 18))
+            self._icon_eye_slash = ctk.CTkImage(light_image=_eye_slash_pil, dark_image=_eye_slash_pil, size=(18, 18))
+            _btn_kw: dict = {"text": "", "image": self._icon_eye_slash}
+        else:
+            self._icon_eye = self._icon_eye_slash = None
+            _btn_kw = {"text": "👁"}
+
         ctk.CTkLabel(
             form,
             text="Password",
             font=ctk.CTkFont(size=15, weight="bold"),
             text_color=theme.TEXT_PRIMARY,
         ).grid(row=2, column=0, sticky="w", padx=22, pady=(0, 4))
+
+        pw_container = ctk.CTkFrame(form, fg_color=theme.BG_SURFACE_ALT, corner_radius=6)
+        pw_container.grid_columnconfigure(0, weight=1)
+        pw_container.grid(row=3, column=0, sticky="ew", padx=22, pady=(0, 10))
+
         self.password_entry = ctk.CTkEntry(
-            form,
+            pw_container,
             height=36,
             placeholder_text="Enter password",
             show="*",
@@ -71,9 +87,21 @@ class AdminPage(ctk.CTkFrame):
             border_width=0,
             text_color=theme.TEXT_PRIMARY,
             placeholder_text_color=theme.TEXT_MUTED,
-            corner_radius=6,
+            corner_radius=0,
         )
-        self.password_entry.grid(row=3, column=0, sticky="ew", padx=22, pady=(0, 10))
+        self.password_entry.grid(row=0, column=0, sticky="ew")
+
+        self._pw_eye_btn = ctk.CTkButton(
+            pw_container,
+            width=34, height=34,
+            fg_color="transparent",
+            hover_color=theme.INPUT_HIGHLIGHT,
+            text_color=theme.TEXT_MUTED,
+            corner_radius=4,
+            command=self._toggle_password,
+            **_btn_kw,
+        )
+        self._pw_eye_btn.grid(row=0, column=1, padx=(0, 4))
 
         ctk.CTkLabel(
             form,
@@ -81,8 +109,13 @@ class AdminPage(ctk.CTkFrame):
             font=ctk.CTkFont(size=15, weight="bold"),
             text_color=theme.TEXT_PRIMARY,
         ).grid(row=4, column=0, sticky="w", padx=22, pady=(0, 4))
+
+        cpw_container = ctk.CTkFrame(form, fg_color=theme.BG_SURFACE_ALT, corner_radius=6)
+        cpw_container.grid_columnconfigure(0, weight=1)
+        cpw_container.grid(row=5, column=0, sticky="ew", padx=22, pady=(0, 10))
+
         self.confirm_password_entry = ctk.CTkEntry(
-            form,
+            cpw_container,
             height=36,
             placeholder_text="Confirm password",
             show="*",
@@ -90,9 +123,21 @@ class AdminPage(ctk.CTkFrame):
             border_width=0,
             text_color=theme.TEXT_PRIMARY,
             placeholder_text_color=theme.TEXT_MUTED,
-            corner_radius=6,
+            corner_radius=0,
         )
-        self.confirm_password_entry.grid(row=5, column=0, sticky="ew", padx=22, pady=(0, 10))
+        self.confirm_password_entry.grid(row=0, column=0, sticky="ew")
+
+        self._cpw_eye_btn = ctk.CTkButton(
+            cpw_container,
+            width=34, height=34,
+            fg_color="transparent",
+            hover_color=theme.INPUT_HIGHLIGHT,
+            text_color=theme.TEXT_MUTED,
+            corner_radius=4,
+            command=self._toggle_confirm_password,
+            **_btn_kw,
+        )
+        self._cpw_eye_btn.grid(row=0, column=1, padx=(0, 4))
 
         ctk.CTkLabel(
             form,
@@ -152,6 +197,34 @@ class AdminPage(ctk.CTkFrame):
             font=ctk.CTkFont(size=13),
         )
 
+    def _toggle_password(self) -> None:
+        if self.password_entry.cget("show") == "":
+            self.password_entry.configure(show="*")
+            if self._icon_eye_slash:
+                self._pw_eye_btn.configure(image=self._icon_eye_slash, text="")
+            else:
+                self._pw_eye_btn.configure(text="👁")
+        else:
+            self.password_entry.configure(show="")
+            if self._icon_eye:
+                self._pw_eye_btn.configure(image=self._icon_eye, text="")
+            else:
+                self._pw_eye_btn.configure(text="🙈")
+
+    def _toggle_confirm_password(self) -> None:
+        if self.confirm_password_entry.cget("show") == "":
+            self.confirm_password_entry.configure(show="*")
+            if self._icon_eye_slash:
+                self._cpw_eye_btn.configure(image=self._icon_eye_slash, text="")
+            else:
+                self._cpw_eye_btn.configure(text="👁")
+        else:
+            self.confirm_password_entry.configure(show="")
+            if self._icon_eye:
+                self._cpw_eye_btn.configure(image=self._icon_eye, text="")
+            else:
+                self._cpw_eye_btn.configure(text="🙈")
+
     def _notify(self, message: str, kind: str) -> None:
         if hasattr(self.master_frame, "show_notification"):
             try:
@@ -179,15 +252,17 @@ class AdminPage(ctk.CTkFrame):
         self.username_entry.configure(state=state)
         self.password_entry.configure(state=state)
         self.confirm_password_entry.configure(state=state)
+        self._pw_eye_btn.configure(state=state)
+        self._cpw_eye_btn.configure(state=state)
         self.role_option.configure(state=state)
         self.add_admin_button.configure(state=state)
 
     def _confirm_delete(self, username: str) -> bool:
         dialog = ctk.CTkToplevel(self)
         dialog.title("Delete Admin")
-        dialog.geometry("430x220")
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
+        center_dialog(dialog, 430, 220)
 
         result = {"ok": False}
 

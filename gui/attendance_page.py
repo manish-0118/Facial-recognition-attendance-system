@@ -23,8 +23,8 @@ class AttendancePage(ctk.CTkFrame):
         self.process_check_after_id: str | None = None
         self._present_after_id: str | None = None
         self.status_var = ctk.StringVar(value="Launch attendance in a separate camera window.")
-        self.start_button: ctk.CTkButton | None = None
-        self.stop_button: ctk.CTkButton | None = None
+        self.start_button:  ctk.CTkButton | None = None
+        self.stop_button:   ctk.CTkButton | None = None
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -69,18 +69,9 @@ class AttendancePage(ctk.CTkFrame):
         )
         self.class_selector.grid(row=1, column=0, sticky="ew", padx=16)
 
-        # Model status indicator
-        self.model_status_var = ctk.StringVar(value="Model Not Trained")
-        status_frame = ctk.CTkFrame(info_card, fg_color=info_card.cget("fg_color"))
-        status_frame.grid(row=2, column=0, sticky="w", padx=16, pady=(12, 6))
-        self._model_dot = ctk.CTkLabel(status_frame, text="●", font=ctk.CTkFont(size=14), text_color=theme.DANGER)
-        self._model_dot.pack(side="left", padx=(0, 8))
-        self._model_status_label = ctk.CTkLabel(status_frame, textvariable=self.model_status_var, text_color=theme.TEXT_PRIMARY)
-        self._model_status_label.pack(side="left")
-
         # Buttons frame (left aligned)
         btn_frame = ctk.CTkFrame(info_card, fg_color=info_card.cget("fg_color"))
-        btn_frame.grid(row=3, column=0, sticky="w", padx=16, pady=(8, 6))
+        btn_frame.grid(row=2, column=0, sticky="w", padx=16, pady=(12, 6))
 
         self.start_button = ctk.CTkButton(
             btn_frame,
@@ -108,7 +99,7 @@ class AttendancePage(ctk.CTkFrame):
         # Present counter
         self.present_count_var = ctk.StringVar(value="Present Today: 0 students")
         self.present_label = ctk.CTkLabel(info_card, textvariable=self.present_count_var, text_color=theme.TEXT_PRIMARY)
-        self.present_label.grid(row=4, column=0, sticky="w", padx=16, pady=(10, 12))
+        self.present_label.grid(row=3, column=0, sticky="w", padx=16, pady=(10, 12))
 
         # Process/status area (keeps existing process status messages)
         self._process_status_label = ctk.CTkLabel(
@@ -118,7 +109,7 @@ class AttendancePage(ctk.CTkFrame):
             justify="left",
             wraplength=700,
         )
-        self._process_status_label.grid(row=5, column=0, sticky="w", padx=16, pady=(0, 16))
+        self._process_status_label.grid(row=4, column=0, sticky="w", padx=16, pady=(0, 16))
 
         # populate classes into selector
         try:
@@ -130,11 +121,6 @@ class AttendancePage(ctk.CTkFrame):
         self._sync_button_state()
         if self.attendance_process is not None:
             self._schedule_process_check()
-        # refresh model status and present counter when page shown
-        try:
-            self._refresh_model_status()
-        except Exception:
-            pass
         try:
             self._refresh_present_count()
         except Exception:
@@ -245,37 +231,8 @@ class AttendancePage(ctk.CTkFrame):
         # Attendance finalization is handled by the background scheduler
 
     # ------------------------------------------------------------------
-    # Model status and present counter helpers
+    # Present counter helper
     # ------------------------------------------------------------------
-    def _is_model_trained(self) -> bool:
-        try:
-            trainer_dir = self.base_dir / "trainer"
-            if not trainer_dir.exists():
-                return False
-            for p in trainer_dir.iterdir():
-                if p.is_file() and p.name.endswith("_model.yml"):
-                    return True
-            if (trainer_dir / "trainer.yml").exists():
-                return True
-        except Exception:
-            return False
-        return False
-
-    def _refresh_model_status(self) -> None:
-        trained = self._is_model_trained()
-        if trained:
-            self.model_status_var.set("Model Ready")
-            try:
-                self._model_dot.configure(text_color=theme.SUCCESS)
-            except Exception:
-                pass
-        else:
-            self.model_status_var.set("Model Not Trained")
-            try:
-                self._model_dot.configure(text_color=theme.DANGER)
-            except Exception:
-                pass
-
     def _refresh_present_count(self) -> None:
         try:
             class_id = int(self.selected_class_id) if self.selected_class_id is not None else None

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import customtkinter as ctk
 from gui import theme
+from gui.widgets import center_dialog
 
 from core.database import (
     get_all_classes,
@@ -152,9 +153,9 @@ class ArchivePage(ctk.CTkFrame):
     def _confirmation_dialog(self, title: str, message: str, danger: bool = False) -> bool:
         dialog = ctk.CTkToplevel(self)
         dialog.title(title)
-        dialog.geometry("430x220")
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
+        center_dialog(dialog, 430, 220)
 
         result = {"ok": False}
 
@@ -218,9 +219,9 @@ class ArchivePage(ctk.CTkFrame):
         # Open password confirmation dialog
         dlg = ctk.CTkToplevel(self)
         dlg.title("Delete Permanently")
-        dlg.geometry("520x260")
         dlg.transient(self.winfo_toplevel())
         dlg.grab_set()
+        center_dialog(dlg, 520, 260)
 
         card = ctk.CTkFrame(dlg, fg_color="#1E1E1E", corner_radius=0)
         card.pack(fill="both", expand=True, padx=8, pady=8)
@@ -242,6 +243,7 @@ class ArchivePage(ctk.CTkFrame):
             card,
             textvariable=pw_var,
             show="*",
+            placeholder_text="Enter password",
             width=420,
             fg_color=theme.BG_SURFACE_ALT,
             border_width=0,

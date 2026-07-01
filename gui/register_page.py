@@ -16,8 +16,15 @@ except Exception:
     ImageTk = None
 
 from core.database import add_student, get_all_classes, log_action, get_all_students, get_archive
+from core.errors import (
+    STUDENT_ID_CHECK_FAILED,
+    REGISTRATION_FAILED,
+    CLASS_LOAD_FAILED,
+    CAPTURE_FAILED,
+)
 from core.face_engine import capture_face_images, train_class_model, cleanup_student_dataset
-from gui.widgets import ThemedDropdown
+from datetime import date, datetime
+from gui.widgets import ThemedDropdown, center_dialog
 
 
 class RegisterPage(ctk.CTkFrame):
@@ -35,7 +42,7 @@ class RegisterPage(ctk.CTkFrame):
         self.pre_selected_class_id = pre_selected_class_id
         self._classes: list[dict] = []
         self._class_map: dict[str, dict] = {}
-        self._capture_target_count = 50
+        self._capture_target_count = 12
         self._capture_busy = False
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -73,68 +80,73 @@ class RegisterPage(ctk.CTkFrame):
 
         ctk.CTkLabel(
             form,
-            text="First Name",
+            text="Full Name",
             font=ctk.CTkFont(size=15, weight="bold"),
             text_color=theme.TEXT_PRIMARY,
         ).grid(row=2, column=0, sticky="w", padx=22, pady=(0, 4))
-        self.first_entry = ctk.CTkEntry(
+        self.full_name_entry = ctk.CTkEntry(
             form,
             height=36,
-            placeholder_text="Enter first name",
+            placeholder_text="Enter full name",
             fg_color=theme.BG_SURFACE_ALT,
             border_width=0,
             text_color=theme.TEXT_PRIMARY,
             placeholder_text_color=theme.TEXT_MUTED,
             corner_radius=6,
         )
-        self.first_entry.grid(row=3, column=0, sticky="ew", padx=22, pady=(0, 6))
+        self.full_name_entry.grid(row=3, column=0, sticky="ew", padx=22, pady=(0, 2))
+        ctk.CTkLabel(
+            form,
+            text="e.g. Firstname Lastname  or  Firstname Middle Lastname",
+            font=ctk.CTkFont(size=11),
+            text_color=theme.TEXT_MUTED,
+            anchor="w",
+        ).grid(row=4, column=0, sticky="w", padx=24, pady=(0, 8))
 
         ctk.CTkLabel(
             form,
-            text="Middle Name",
+            text="Date of Birth (optional)",
             font=ctk.CTkFont(size=15, weight="bold"),
             text_color=theme.TEXT_PRIMARY,
-        ).grid(row=4, column=0, sticky="w", padx=22, pady=(0, 4))
-        self.middle_entry = ctk.CTkEntry(
+        ).grid(row=5, column=0, sticky="w", padx=22, pady=(0, 4))
+        self.dob_entry = ctk.CTkEntry(
             form,
             height=36,
-            placeholder_text="Optional",
+            placeholder_text="YYYY-MM-DD",
             fg_color=theme.BG_SURFACE_ALT,
             border_width=0,
             text_color=theme.TEXT_PRIMARY,
             placeholder_text_color=theme.TEXT_MUTED,
             corner_radius=6,
         )
-        self.middle_entry.grid(row=5, column=0, sticky="ew", padx=22, pady=(0, 6))
+        self.dob_entry.grid(row=6, column=0, sticky="ew", padx=22, pady=(0, 10))
 
         ctk.CTkLabel(
             form,
-            text="Last Name",
+            text="Address (optional)",
             font=ctk.CTkFont(size=15, weight="bold"),
             text_color=theme.TEXT_PRIMARY,
-        ).grid(row=6, column=0, sticky="w", padx=22, pady=(0, 4))
-        self.last_entry = ctk.CTkEntry(
+        ).grid(row=7, column=0, sticky="w", padx=22, pady=(0, 4))
+        self.address_entry = ctk.CTkEntry(
             form,
             height=36,
-            placeholder_text="Enter last name",
+            placeholder_text="Enter address",
             fg_color=theme.BG_SURFACE_ALT,
             border_width=0,
             text_color=theme.TEXT_PRIMARY,
             placeholder_text_color=theme.TEXT_MUTED,
             corner_radius=6,
         )
-        self.last_entry.grid(row=7, column=0, sticky="ew", padx=22, pady=(0, 10))
+        self.address_entry.grid(row=8, column=0, sticky="ew", padx=22, pady=(0, 10))
 
         ctk.CTkLabel(
             form,
             text="Class",
             font=ctk.CTkFont(size=15, weight="bold"),
             text_color=theme.TEXT_PRIMARY,
-        ).grid(row=8, column=0, sticky="w", padx=22, pady=(0, 4))
+        ).grid(row=9, column=0, sticky="w", padx=22, pady=(0, 4))
         self.class_dropdown = ThemedDropdown(form, values=["Select Class"], height=36)
-        self.class_dropdown.grid(row=9, column=0, sticky="ew", padx=22, pady=(0, 10))
-        
-    
+        self.class_dropdown.grid(row=10, column=0, sticky="ew", padx=22, pady=(0, 10))
 
         # profile photo state
         self.profile_photo_bytes: bytes | None = None
@@ -145,14 +157,14 @@ class RegisterPage(ctk.CTkFrame):
             text="Profile Photo",
             font=ctk.CTkFont(size=15, weight="bold"),
             text_color=theme.TEXT_PRIMARY,
-        ).grid(row=10, column=0, sticky="w", padx=22, pady=(0, 4))
+        ).grid(row=11, column=0, sticky="w", padx=22, pady=(0, 4))
         self.photo_dropdown = ThemedDropdown(
             form,
             values=["Select Photo", "Take Photo", "Upload Photo"],
             command=self._on_photo_option_selected,
             height=36,
         )
-        self.photo_dropdown.grid(row=11, column=0, sticky="ew", padx=22, pady=(0, 10))
+        self.photo_dropdown.grid(row=12, column=0, sticky="ew", padx=22, pady=(0, 10))
 
         self.capture_button = ctk.CTkButton(
             form,
@@ -163,7 +175,7 @@ class RegisterPage(ctk.CTkFrame):
             height=36,
             font=ctk.CTkFont(size=15, weight="bold"),
         )
-        self.capture_button.grid(row=12, column=0, sticky="ew", padx=22, pady=(0, 8))
+        self.capture_button.grid(row=13, column=0, sticky="ew", padx=22, pady=(0, 8))
 
         self.progress_bar = ctk.CTkProgressBar(form)
         self.progress_bar.set(0)
@@ -175,7 +187,7 @@ class RegisterPage(ctk.CTkFrame):
             wraplength=420,
             justify="left",
         )
-        self.status_label.grid(row=14, column=0, sticky="ew", padx=22, pady=(0, 14))
+        self.status_label.grid(row=15, column=0, sticky="ew", padx=22, pady=(0, 14))
 
         self.refresh()
 
@@ -191,17 +203,39 @@ class RegisterPage(ctk.CTkFrame):
         selected_label = self.class_dropdown.get().strip()
         class_row = self._class_map.get(selected_label)
         student_id = self.id_entry.get().strip()
-        first_name = self.first_entry.get().strip()
-        middle_name = self.middle_entry.get().strip()
-        last_name = self.last_entry.get().strip()
+        full_name = self.full_name_entry.get().strip()
+        parts = full_name.split()
 
-        if not student_id or not first_name or not last_name or class_row is None:
-            self.status_label.configure(
-                text="Please fill Student ID, Student Name, and Class.",
-                text_color=theme.DANGER,
-            )
+        if not student_id or len(parts) < 2 or class_row is None:
+            if len(parts) == 1:
+                msg = "Please enter at least a first and last name."
+            else:
+                msg = "Please fill Student ID, Full Name, and Class."
+            self.status_label.configure(text=msg, text_color=theme.DANGER)
             self._notify("Please fill all required fields.", "error")
             return
+
+        if len(parts) == 2:
+            first_name, middle_name, last_name = parts[0], None, parts[1]
+        else:
+            first_name = parts[0]
+            last_name = parts[-1]
+            middle_name = " ".join(parts[1:-1])
+
+        dob_raw = self.dob_entry.get().strip()
+        dob_str = None
+        if dob_raw:
+            try:
+                dob_date = datetime.strptime(dob_raw, "%Y-%m-%d").date()
+                if dob_date < date(1900, 1, 1) or dob_date > date.today():
+                    raise ValueError
+                dob_str = dob_raw
+            except ValueError:
+                msg = "Date of Birth must be a valid date between 1900-01-01 and today (YYYY-MM-DD)."
+                self.status_label.configure(text=msg, text_color=theme.DANGER)
+                self._notify(msg, "error")
+                return
+        address_str = self.address_entry.get().strip() or None
 
         # Pre-capture: ensure student ID is unique across active and archived students
         try:
@@ -214,9 +248,9 @@ class RegisterPage(ctk.CTkFrame):
                 self.status_label.configure(text=message, text_color=theme.DANGER)
                 self._notify(message, "error")
                 return
-        except Exception as e:
-            self.status_label.configure(text=f"Failed to validate student ID: {e}", text_color=theme.DANGER)
-            self._notify("Failed to validate student ID.", "error")
+        except Exception:
+            self.status_label.configure(text=STUDENT_ID_CHECK_FAILED, text_color=theme.DANGER)
+            self._notify(STUDENT_ID_CHECK_FAILED, "error")
             return
 
         class_id = int(class_row["id"])
@@ -225,8 +259,8 @@ class RegisterPage(ctk.CTkFrame):
         else:
             display_name = f"{first_name} {last_name}"
 
-        self.progress_bar.grid(row=13, column=0, sticky="ew", padx=22, pady=(0, 6))
-        self._open_capture_window(student_id, first_name, middle_name or None, last_name, display_name, class_id)
+        self.progress_bar.grid(row=14, column=0, sticky="ew", padx=22, pady=(0, 6))
+        self._open_capture_window(student_id, first_name, middle_name or None, last_name, display_name, class_id, dob_str, address_str)
 
     def _open_capture_window(
         self,
@@ -236,6 +270,8 @@ class RegisterPage(ctk.CTkFrame):
         last_name: str,
         display_name: str,
         class_id: int,
+        date_of_birth: str | None = None,
+        address: str | None = None,
     ) -> None:
         """Open a live camera preview window and capture face images while showing progress."""
         import os as _os
@@ -244,10 +280,10 @@ class RegisterPage(ctk.CTkFrame):
 
         dlg = ctk.CTkToplevel(self)
         dlg.title(f"Capturing — {display_name}")
-        dlg.geometry("560x480")
         dlg.transient(self.winfo_toplevel())
         dlg.grab_set()
         dlg.resizable(False, False)
+        center_dialog(dlg, 560, 480)
 
         # Header
         ctk.CTkLabel(
@@ -257,7 +293,7 @@ class RegisterPage(ctk.CTkFrame):
             text_color="white",
         ).pack(pady=(14, 4))
 
-        count_label = ctk.CTkLabel(dlg, text="0 / 50 images captured", text_color=theme.TEXT_SECONDARY)
+        count_label = ctk.CTkLabel(dlg, text=f"0 / {self._capture_target_count} images captured", text_color=theme.TEXT_SECONDARY)
         count_label.pack(pady=(0, 6))
 
         # Camera feed
@@ -284,7 +320,7 @@ class RegisterPage(ctk.CTkFrame):
             import os as _os2
             from pathlib import Path
             import cv2 as _cv2
-            from core.face_engine import _ensure_dir, _CASCADE_PATH, _BASE
+            from core.face_engine import _ensure_dir, _get_detector, _BASE
 
             folder_name = f"{str(student_id).zfill(3)}_{display_name}"
             save_dir = _os2.path.join(_BASE, 'dataset', str(class_id), folder_name)
@@ -301,7 +337,6 @@ class RegisterPage(ctk.CTkFrame):
                     pass
             next_idx = max_idx + 1
 
-            face_cascade = _cv2.CascadeClassifier(_CASCADE_PATH)
             target = self._capture_target_count
             saved = 0
             error_msg = None
@@ -317,14 +352,15 @@ class RegisterPage(ctk.CTkFrame):
                     if not ret:
                         continue
 
-                    gray = _cv2.cvtColor(frame, _cv2.COLOR_BGR2GRAY)
-                    rects = face_cascade.detectMultiScale(
-                        gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60)
-                    )
+                    fh_f, fw_f = frame.shape[:2]
+                    detector = _get_detector(fw_f, fh_f)
+                    _, faces = detector.detect(frame)
 
                     display_frame = frame.copy()
-                    for (x, y, w, h) in rects:
-                        _cv2.rectangle(display_frame, (x, y), (x + w, y + h), (0, 200, 80), 2)
+                    if faces is not None:
+                        for face in faces:
+                            fx, fy, fw, fh = int(face[0]), int(face[1]), int(face[2]), int(face[3])
+                            _cv2.rectangle(display_frame, (fx, fy), (fx + fw, fy + fh), (0, 200, 80), 2)
 
                     # push frame for preview
                     rgb = _cv2.cvtColor(display_frame, _cv2.COLOR_BGR2RGB)
@@ -338,14 +374,14 @@ class RegisterPage(ctk.CTkFrame):
                             except _queue.Empty:
                                 break
 
-                    if len(rects) > 0:
-                        x, y, w, h = max(rects, key=lambda r: r[2] * r[3])
-                        pad = int(0.1 * max(w, h))
-                        fh_f, fw_f = frame.shape[:2]
-                        x1 = max(0, x - pad)
-                        y1 = max(0, y - pad)
-                        x2 = min(fw_f, x + w + pad)
-                        y2 = min(fh_f, y + h + pad)
+                    if faces is not None and len(faces) > 0:
+                        face = max(faces, key=lambda f: f[2] * f[3])
+                        fx, fy, fw, fh = int(face[0]), int(face[1]), int(face[2]), int(face[3])
+                        pad = int(0.1 * max(fw, fh))
+                        x1 = max(0, fx - pad)
+                        y1 = max(0, fy - pad)
+                        x2 = min(fw_f, fx + fw + pad)
+                        y2 = min(fh_f, fy + fh + pad)
                         face_img = frame[y1:y2, x1:x2]
                         if face_img.size > 0:
                             out_path = _os2.path.join(save_dir, f"{next_idx:04d}.jpg")
@@ -414,8 +450,8 @@ class RegisterPage(ctk.CTkFrame):
                 pass
 
             if _result["error"]:
-                self.status_label.configure(text=f"Capture failed: {_result['error']}", text_color=theme.DANGER)
-                self._notify(f"Capture failed: {_result['error']}", "error")
+                self.status_label.configure(text=CAPTURE_FAILED, text_color=theme.DANGER)
+                self._notify(CAPTURE_FAILED, "error")
                 self._set_busy(False)
                 return
 
@@ -436,6 +472,8 @@ class RegisterPage(ctk.CTkFrame):
                         student_id, first_name, middle_name, last_name,
                         class_id, self.username or "system",
                         getattr(self, "profile_photo_bytes", None),
+                        date_of_birth=date_of_birth,
+                        address=address,
                     )
                     train_class_model(class_id)
                     log_action(
@@ -455,7 +493,8 @@ class RegisterPage(ctk.CTkFrame):
 
             threading.Thread(target=_finish_worker, daemon=True).start()
 
-        def _cancel():
+        def _stop_and_cleanup():
+            """Stop the capture thread and wipe any partially-captured photos."""
             _stop.set()
             try:
                 if cap_ref[0]:
@@ -463,15 +502,44 @@ class RegisterPage(ctk.CTkFrame):
             except Exception:
                 pass
             try:
+                cleanup_student_dataset(student_id, class_id)
+            except Exception:
+                pass
+            try:
                 dlg.grab_release()
                 dlg.destroy()
             except Exception:
                 pass
+
+        def _cancel():
+            _stop_and_cleanup()
             self._set_busy(False)
-            self.status_label.configure(text="Capture cancelled.", text_color=theme.TEXT_SECONDARY)
+            self.status_label.configure(
+                text="Capture cancelled. Photos discarded — fill the form and try again.",
+                text_color=theme.TEXT_SECONDARY,
+            )
+
+        def _retake():
+            _stop_and_cleanup()
+            self.status_label.configure(text="Restarting capture...", text_color=theme.TEXT_SECONDARY)
+            self.after(300, lambda: self._open_capture_window(
+                student_id, first_name, middle_name, last_name,
+                display_name, class_id, date_of_birth, address,
+            ))
 
         dlg.protocol("WM_DELETE_WINDOW", _cancel)
-        ctk.CTkButton(dlg, text="Cancel", fg_color=theme.BTN_DANGER, hover_color=theme.BTN_DANGER_HVR, command=_cancel).pack(pady=(0, 10))
+        btn_row = ctk.CTkFrame(dlg, fg_color="transparent")
+        btn_row.pack(pady=(0, 10))
+        ctk.CTkButton(
+            btn_row, text="Void & Retake",
+            fg_color=theme.BTN_SECONDARY, hover_color=theme.BTN_SECONDARY_HVR,
+            text_color=theme.TEXT_PRIMARY, command=_retake,
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            btn_row, text="Cancel",
+            fg_color=theme.BTN_DANGER, hover_color=theme.BTN_DANGER_HVR,
+            command=_cancel,
+        ).pack(side="left")
 
         self._set_busy(True)
         self.status_label.configure(text="Camera window open — capturing...", text_color=theme.TEXT_SECONDARY)
@@ -499,15 +567,15 @@ class RegisterPage(ctk.CTkFrame):
         self._notify("Student registered and model updated successfully", "success")
         self.id_entry.delete(0, "end")
         try:
-            self.first_entry.delete(0, "end")
+            self.full_name_entry.delete(0, "end")
         except Exception:
             pass
         try:
-            self.middle_entry.delete(0, "end")
+            self.dob_entry.delete(0, "end")
         except Exception:
             pass
         try:
-            self.last_entry.delete(0, "end")
+            self.address_entry.delete(0, "end")
         except Exception:
             pass
         self.class_dropdown.set("Select Class")
@@ -516,7 +584,7 @@ class RegisterPage(ctk.CTkFrame):
             self.master_frame.refresh_all_views()
 
     def _on_register_failure(self, error: Exception) -> None:
-        self.status_label.configure(text=f"Registration failed: {error}", text_color=theme.DANGER)
+        self.status_label.configure(text=REGISTRATION_FAILED, text_color=theme.DANGER)
         self._notify("Registration failed.", "error")
 
     def _notify(self, message: str, kind: str) -> None:
@@ -550,8 +618,8 @@ class RegisterPage(ctk.CTkFrame):
     def refresh(self) -> None:
         try:
             self._classes = get_all_classes()
-        except Exception as error:
-            self.status_label.configure(text=f"Failed to load classes: {error}", text_color=theme.DANGER)
+        except Exception:
+            self.status_label.configure(text=CLASS_LOAD_FAILED, text_color=theme.DANGER)
             return
 
         self._class_map.clear()
@@ -589,9 +657,9 @@ class RegisterPage(ctk.CTkFrame):
         try:
             dlg = ctk.CTkToplevel(self)
             dlg.title("Capture Photo")
-            dlg.geometry("520x420")
             dlg.transient(self.winfo_toplevel())
             dlg.grab_set()
+            center_dialog(dlg, 520, 420)
 
             video_label = ctk.CTkLabel(dlg, text="", fg_color=theme.BG_SURFACE_ALT)
             video_label.pack(fill="both", expand=True, padx=8, pady=8)

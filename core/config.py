@@ -20,7 +20,13 @@ DEFAULTS = {
 }
 
 
+_config_cache: configparser.ConfigParser | None = None
+
+
 def _load_config() -> configparser.ConfigParser:
+    global _config_cache
+    if _config_cache is not None:
+        return _config_cache
     config = configparser.ConfigParser()
     if not os.path.exists(CONFIG_PATH):
         for section, values in DEFAULTS.items():
@@ -29,6 +35,7 @@ def _load_config() -> configparser.ConfigParser:
             config.write(f)
     else:
         config.read(CONFIG_PATH)
+    _config_cache = config
     return config
 
 
