@@ -80,6 +80,7 @@ def _get_pool() -> pooling.MySQLConnectionPool:
                 port=cfg["port"],
                 user=cfg["user"],
                 password=cfg["password"],
+                use_pure=True,
             )
             cur = bare.cursor()
             cur.execute(
@@ -99,6 +100,7 @@ def _get_pool() -> pooling.MySQLConnectionPool:
                 database=cfg["database"],
                 charset="utf8mb4",
                 collation="utf8mb4_unicode_ci",
+                use_pure=True,
             )
             _log.info("Database connection pool created (%s:%s/%s)", cfg["host"], cfg["port"], cfg["database"])
         except Exception as exc:
@@ -257,6 +259,33 @@ def init_db() -> None:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """,
             ),
+            (
+                "student_images",
+                """
+                CREATE TABLE IF NOT EXISTS student_images (
+                    id          INT AUTO_INCREMENT PRIMARY KEY,
+                    student_id  VARCHAR(50)  NOT NULL,
+                    class_id    INT          NOT NULL,
+                    image_index INT          NOT NULL,
+                    image_data  LONGBLOB     NOT NULL,
+                    created_at  DATETIME     DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_si_student_class (student_id, class_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """,
+            ),
+            (
+                "student_encodings",
+                """
+                CREATE TABLE IF NOT EXISTS student_encodings (
+                    id          INT AUTO_INCREMENT PRIMARY KEY,
+                    student_id  VARCHAR(50)  NOT NULL,
+                    class_id    INT          NOT NULL,
+                    label       VARCHAR(200) NOT NULL,
+                    embedding   BLOB         NOT NULL,
+                    INDEX idx_se_class (class_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """,
+            ),
         ]
 
         for table_name, statement in table_statements:
@@ -278,13 +307,6 @@ def init_db() -> None:
                 conn.commit()
             except Exception:
                 pass  # column already exists — skip
-
-        cur.execute("SELECT id FROM admins WHERE role = 'superadmin' LIMIT 1")
-        if cur.fetchone() is None:
-            cur.execute(
-                "INSERT INTO admins (username, password_hash, role, created_by) VALUES (%s, %s, %s, %s)",
-                ("superadmin", _hash("super123"), "superadmin", "system"),
-            )
 
         defaults = [
             ("max_classes", "20"),
@@ -419,6 +441,25 @@ def update_all_class_times(late_cutoff: str | None, absent_cutoff: str | None) -
                 conn.close()
             except Exception:
                 pass
+
+
+@_safe_write
+def update_class_times(class_id: int, late_cutoff: str, absent_cutoff: str) -> None:
+    """Update late_cutoff and absent_cutoff for a single class."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE classes SET late_cutoff = %s, absent_cutoff = %s WHERE id = %s",
+            (late_cutoff, absent_cutoff, class_id),
+        )
+        conn.commit()
+        cur.close()
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 @_safe_read((None, None))
@@ -1071,6 +1112,232 @@ def verify_admin(username: str, password: str) -> str | None:
         raise DatabaseUnavailableError(
             "Unable to verify credentials. Please check the database connection and try again."
         ) from None
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def has_superadmin() -> bool:
+    """Return True if at least one superadmin account exists in the database."""
+    conn = None
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM admins WHERE role = 'superadmin' LIMIT 1")
+        return cur.fetchone() is not None
+    except Exception:
+        _log.exception("has_superadmin check failed")
+        return False
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+@_safe_write
+def create_superadmin(username: str, password: str) -> None:
+    """Create the first superadmin account. Called once on first-run setup."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO admins (username, password_hash, role, created_by) VALUES (%s, %s, %s, %s)",
+            (username, _hash(password), "superadmin", "setup"),
+        )
+        conn.commit()
+        cur.close()
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Face image storage
+# ---------------------------------------------------------------------------
+
+@_safe_write
+def save_student_images(student_id: str, class_id: int, images: list) -> None:
+    """Store captured face image bytes for a student, replacing any existing ones."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM student_images WHERE student_id = %s AND class_id = %s",
+            (student_id, class_id),
+        )
+        for idx, img_bytes in enumerate(images):
+            cur.execute(
+                "INSERT INTO student_images (student_id, class_id, image_index, image_data) "
+                "VALUES (%s, %s, %s, %s)",
+                (student_id, class_id, idx, img_bytes),
+            )
+        conn.commit()
+        cur.close()
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+@_safe_read([])
+def get_student_images(student_id: str, class_id: int) -> list:
+    """Return stored face image bytes for a student, in capture order."""
+    conn = None
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT image_data FROM student_images "
+            "WHERE student_id = %s AND class_id = %s ORDER BY image_index",
+            (student_id, class_id),
+        )
+        return [bytes(row[0]) for row in cur.fetchall()]
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+@_safe_read([])
+def get_all_images_for_class(class_id: int) -> list:
+    """Return [(student_id, image_bytes), ...] for all students in a class."""
+    conn = None
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT student_id, image_data FROM student_images "
+            "WHERE class_id = %s ORDER BY student_id, image_index",
+            (class_id,),
+        )
+        return [(row[0], bytes(row[1])) for row in cur.fetchall()]
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+@_safe_write
+def delete_student_images(student_id: str, class_id: int) -> None:
+    """Delete all face images for a student in a class."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM student_images WHERE student_id = %s AND class_id = %s",
+            (student_id, class_id),
+        )
+        conn.commit()
+        cur.close()
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Face encoding storage
+# ---------------------------------------------------------------------------
+
+@_safe_write
+def save_class_encodings(class_id: int, labels: list, embeddings: list) -> None:
+    """Replace all face embeddings for a class. Called after training."""
+    import numpy as np
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM student_encodings WHERE class_id = %s", (class_id,))
+        for label, embedding in zip(labels, embeddings):
+            emb_arr = np.asarray(embedding, dtype=np.float32)
+            cur.execute(
+                "INSERT INTO student_encodings (student_id, class_id, label, embedding) "
+                "VALUES (%s, %s, %s, %s)",
+                (str(label), class_id, str(label), emb_arr.tobytes()),
+            )
+        conn.commit()
+        cur.close()
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+@_safe_read((None, []))
+def get_class_encodings(class_id: int) -> tuple:
+    """Return (embeddings_matrix, labels) for a class, or (None, []) if none exist."""
+    import numpy as np
+    conn = None
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT label, embedding FROM student_encodings WHERE class_id = %s",
+            (class_id,),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        if not rows:
+            return None, []
+        labels = [row[0] for row in rows]
+        embeddings = np.stack([
+            np.frombuffer(bytes(row[1]), dtype=np.float32)
+            for row in rows
+        ])
+        return embeddings, labels
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+@_safe_write
+def delete_student_encodings(student_id: str, class_id: int) -> None:
+    """Delete embeddings for a specific student in a class."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM student_encodings WHERE student_id = %s AND class_id = %s",
+            (student_id, class_id),
+        )
+        conn.commit()
+        cur.close()
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def has_class_encodings(class_id: int) -> bool:
+    """Return True if trained embeddings exist for a class."""
+    conn = None
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id FROM student_encodings WHERE class_id = %s LIMIT 1",
+            (class_id,),
+        )
+        return cur.fetchone() is not None
+    except Exception:
+        return False
     finally:
         if conn:
             try:

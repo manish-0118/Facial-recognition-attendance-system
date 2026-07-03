@@ -1,7 +1,8 @@
 import configparser
 import os
+from core.paths import data_dir
 
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.ini")
+CONFIG_PATH = os.path.join(data_dir(), "config.ini")
 
 DEFAULTS = {
     "database": {
@@ -27,7 +28,7 @@ def _load_config() -> configparser.ConfigParser:
     global _config_cache
     if _config_cache is not None:
         return _config_cache
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(interpolation=None)
     if not os.path.exists(CONFIG_PATH):
         for section, values in DEFAULTS.items():
             config[section] = values

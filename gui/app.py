@@ -7,9 +7,10 @@ from typing import Callable
 
 import customtkinter as ctk # pyright: ignore[reportMissingImports]
 
-from core.database import init_db, log_action
+from core.database import init_db, has_superadmin, log_action
 from core.errors import DatabaseUnavailableError
 from core.logger import get_logger
+from core.mariadb_manager import start_server, stop_server
 from core.scheduler import AttendanceScheduler
 
 _log = get_logger(__name__)
@@ -19,7 +20,7 @@ from .archive_page import ArchivePage
 from .attendance_page import AttendancePage
 from .audit_page import AuditPage, prefetch_audit_data, clear_audit_prefetch
 from .export_page import ExportPage
-from .login_page import LoginPage
+from .login_page import LoginPage, SetupPage
 from .dashboard_page import DashboardPage
 from .register_page import RegisterPage
 from .class_hub_page import ClassHubPage
@@ -167,6 +168,14 @@ class App(ctk.CTk):
         ctk.set_appearance_mode(theme.CTK_MODE)
         ctk.set_default_color_theme("dark-blue")
 
+        if not start_server():
+            import tkinter.messagebox as _mb
+            _mb.showerror(
+                "Database Error",
+                "Could not start the database server.\n\nPlease reinstall the application.",
+            )
+            raise SystemExit(1)
+
         try:
             init_db()
         except DatabaseUnavailableError as _exc:
@@ -196,7 +205,8 @@ class App(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self.login_page = LoginPage(self, self.on_login_success)
+        self.login_page = None
+        self.setup_page = None
         self.sidebar = None
         self.content_frame = None
         # start background scheduler to finalize attendance
@@ -206,7 +216,11 @@ class App(ctk.CTk):
         except Exception:
             self.scheduler = None
 
-        self.show_login()
+        if has_superadmin():
+            self.login_page = LoginPage(self, self.on_login_success)
+            self.show_login()
+        else:
+            self._show_setup()
         self._bind_activity_events()
         self._schedule_timeout_check()
         self.bind('<Configure>', self._on_configure)
@@ -227,7 +241,9 @@ class App(ctk.CTk):
         self.state('zoomed')
         self.deiconify()
         self.update()   # drain event queue — window fully drawn before focus
-        if self.login_page:
+        if self.setup_page:
+            self.setup_page.focus_username()
+        elif self.login_page:
             self.login_page.focus_username()
 
     def _on_close(self) -> None:
@@ -243,6 +259,7 @@ class App(ctk.CTk):
             self.destroy()
         except Exception:
             pass
+        stop_server()
 
     def _apply_icon(self) -> None:
         icon_path = os.path.abspath(os.path.join(
@@ -515,6 +532,20 @@ class App(ctk.CTk):
         except Exception:
             pass
         self.login_page.grid(row=0, column=0, columnspan=2, sticky="nsew")
+
+    def _show_setup(self) -> None:
+        self._set_login_grid()
+        self.setup_page = SetupPage(self, self._on_setup_complete)
+        self.setup_page.grid(row=0, column=0, columnspan=2, sticky="nsew")
+
+    def _on_setup_complete(self, username: str) -> None:
+        if self.setup_page:
+            self.setup_page.destroy()
+            self.setup_page = None
+        self._set_login_grid()
+        self.login_page = LoginPage(self, self.on_login_success)
+        self.login_page.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.login_page.focus_username()
 
     # ── Resize debounce ───────────────────────────────────────────────────────
 

@@ -48,6 +48,9 @@ dist/
 build/
 *.egg-info/
 
+# Bundled MariaDB portable (build-time only, never commit)
+mariadb/
+
 attendance/*.pdf
 attendance/*.csv
 attendance/*.xlsx
@@ -55,4 +58,5 @@ attendance/*.xlsx
 # Planning / scratch docs (not for repo)
 class_diagram_prompt.md
 techstack.md
+deployment_diagram_prompt.md
 

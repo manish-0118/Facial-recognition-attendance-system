@@ -1,20 +1,18 @@
 import sys
 import os
-import pickle
-import numpy as np # pyright: ignore[reportMissingImports]
-import cv2 # pyright: ignore[reportMissingImports]
+import numpy as np
+import cv2
 from datetime import datetime
 
-from core.database import mark_attendance, get_all_students, get_class_cutoffs
+from core.database import mark_attendance, get_all_students, get_class_cutoffs, get_class_encodings
 from core.logger import get_logger
+from core.paths import data_dir, bundle_dir
 
 _log = get_logger(__name__)
 
-_BASE = os.path.dirname(os.path.abspath(__file__))
-_DETECTOR_PATH = os.path.join(_BASE, 'models', 'face_detection_yunet_2023mar.onnx')
-_RECOGNIZER_PATH = os.path.join(_BASE, 'models', 'face_recognition_sface_2021dec.onnx')
-_TRAINER_DIR = os.path.join(_BASE, 'trainer')
-_STOP_SIGNAL = os.path.join(_BASE, 'stop_signal.txt')
+_DETECTOR_PATH = os.path.join(bundle_dir(), 'models', 'face_detection_yunet_2023mar.onnx')
+_RECOGNIZER_PATH = os.path.join(bundle_dir(), 'models', 'face_recognition_sface_2021dec.onnx')
+_STOP_SIGNAL = os.path.join(data_dir(), 'stop_signal.txt')
 
 
 def _parse_time(value):
@@ -28,6 +26,7 @@ def _parse_time(value):
         return value
     h, m = str(value).strip().split(":")[:2]
     return datetime.time(int(h), int(m))
+
 
 def _resolve_status(now_time, late_cutoff, absent_cutoff):
     if now_time <= late_cutoff:
@@ -51,16 +50,13 @@ def take_attendance_session(class_id):
         if int(row.get('class_id', -1)) == int(class_id)
     }
 
-    enc_path = os.path.join(_TRAINER_DIR, f"{class_id}_encodings.pkl")
-    if not os.path.exists(enc_path):
-        _log.error("take_attendance: encodings not found for class_id=%s at %s", class_id, enc_path)
-        print(f"ERROR: Encodings not found for class {class_id}", file=sys.stderr)
+    # Load embeddings from database instead of pkl file
+    known_embeddings, known_labels = get_class_encodings(class_id)
+    if known_embeddings is None or len(known_embeddings) == 0:
+        _log.error("take_attendance: no encodings in DB for class_id=%s", class_id)
+        print(f"ERROR: No trained encodings found for class {class_id}. "
+              "Register students and train the model first.", file=sys.stderr)
         return
-
-    with open(enc_path, 'rb') as f:
-        data = pickle.load(f)
-    known_embeddings = data.get('embeddings')
-    known_labels = data.get('labels', [])
 
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -122,7 +118,7 @@ def take_attendance_session(class_id):
                             best_label = label
 
                     if best_score >= 0.45:
-                        sid = best_label.split('_')[0] if '_' in best_label else best_label
+                        sid = best_label
                         display_name = student_lookup.get(sid, best_label)
                         confidence = round(best_score * 100, 1)
 
@@ -137,7 +133,8 @@ def take_attendance_session(class_id):
                                 if inserted:
                                     marked.add(sid)
                             except Exception:
-                                _log.exception("take_attendance: failed to mark attendance for sid=%s class_id=%s", sid, class_id)
+                                _log.exception("take_attendance: failed to mark attendance "
+                                               "for sid=%s class_id=%s", sid, class_id)
                     else:
                         cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 0, 255), 2)
                         cv2.putText(frame, "Unknown",

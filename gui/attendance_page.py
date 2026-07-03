@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -17,8 +18,9 @@ class AttendancePage(ctk.CTkFrame):
         self.master_frame = master
         self.class_list: list[dict] = []
         self.selected_class_id: int | None = None
-        self.base_dir = Path(__file__).resolve().parent.parent
-        self.stop_signal_path = self.base_dir / "stop_signal.txt"
+        from core.paths import app_dir, data_dir
+        self.base_dir = Path(app_dir())
+        self.stop_signal_path = Path(data_dir()) / "stop_signal.txt"
         self.attendance_process: subprocess.Popen | None = None
         self.process_check_after_id: str | None = None
         self._present_after_id: str | None = None
@@ -155,8 +157,14 @@ class AttendancePage(ctk.CTkFrame):
         try:
             if self.stop_signal_path.exists():
                 self.stop_signal_path.unlink()
+            if getattr(sys, 'frozen', False):
+                cmd = [sys.executable, "--take-attendance", str(selected_class_id)]
+            else:
+                cmd = [sys.executable,
+                       os.path.join(str(self.base_dir), "take_attendance.py"),
+                       str(selected_class_id)]
             self.attendance_process = subprocess.Popen(
-                [sys.executable, "take_attendance.py", str(selected_class_id)],
+                cmd,
                 cwd=str(self.base_dir),
             )
         except Exception as error:

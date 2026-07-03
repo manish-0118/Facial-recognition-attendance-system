@@ -1,23 +1,28 @@
 import os
-import cv2 # pyright: ignore[reportMissingImports]
-import numpy as np # pyright: ignore[reportMissingImports]
-import pickle
-import shutil
+import cv2
+import numpy as np
 
 from core.logger import get_logger
+from core.paths import bundle_dir
+from core.database import (
+    get_all_images_for_class,
+    save_class_encodings,
+    get_class_encodings,
+    delete_student_images,
+    delete_student_encodings,
+    has_class_encodings,
+)
 
 _log = get_logger(__name__)
 
-# Model paths
-_BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_DETECTOR_PATH = os.path.join(_BASE, 'models', 'face_detection_yunet_2023mar.onnx')
-_RECOGNIZER_PATH = os.path.join(_BASE, 'models', 'face_recognition_sface_2021dec.onnx')
-# Module-level model caches — loaded once, reused for the lifetime of the process
-_detector_cache: dict[tuple[int, int], "cv2.FaceDetectorYN"] = {}
-_recognizer: "cv2.FaceRecognizerSF | None" = None
+_DETECTOR_PATH = os.path.join(bundle_dir(), 'models', 'face_detection_yunet_2023mar.onnx')
+_RECOGNIZER_PATH = os.path.join(bundle_dir(), 'models', 'face_recognition_sface_2021dec.onnx')
 
-# Embedding cache: {class_id: (file_mtime, embeddings_matrix, labels)}
-_embedding_cache: dict[int, tuple[float, np.ndarray, list]] = {}
+_detector_cache: dict = {}
+_recognizer = None
+
+# {class_id: (embeddings_matrix, labels)} — invalidated after training
+_embedding_cache: dict = {}
 
 
 def _get_detector(width: int = 640, height: int = 480):
@@ -37,7 +42,6 @@ def _get_recognizer():
     return _recognizer
 
 
-
 def detect_faces(frame):
     h, w = frame.shape[:2]
     detector = _get_detector(w, h)
@@ -51,155 +55,70 @@ def detect_faces(frame):
     return boxes
 
 
-def _ensure_dir(path):
-    os.makedirs(path, exist_ok=True)
-
-
-def capture_face_images(student_id, name, class_id, count=12, progress_callback=None):
-    folder_name = f"{str(student_id).zfill(3)}_{name}"
-    save_dir = os.path.join(_BASE, 'dataset', str(class_id), folder_name)
-    _ensure_dir(save_dir)
-
-    existing = [f for f in os.listdir(save_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-    max_idx = 0
-    for fn in existing:
-        try:
-            idx = int(os.path.splitext(fn)[0])
-            if idx > max_idx:
-                max_idx = idx
-        except Exception:
-            continue
-    next_idx = max_idx + 1
-
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        _log.error("capture_face_images: webcam could not be opened for student_id=%s", student_id)
-        raise RuntimeError('Could not open webcam')
-
-    saved = 0
-    try:
-        while saved < count:
-            ret, frame = cap.read()
-            if not ret:
-                continue
-            fh_frame, fw_frame = frame.shape[:2]
-            detector = _get_detector(fw_frame, fh_frame)
-            _, faces = detector.detect(frame)
-            if faces is None or len(faces) == 0:
-                continue
-            face = max(faces, key=lambda f: f[2] * f[3])
-            x, y, fw, fh = int(face[0]), int(face[1]), int(face[2]), int(face[3])
-            pad = int(0.1 * max(fw, fh))
-            x1 = max(0, x - pad)
-            y1 = max(0, y - pad)
-            x2 = min(fw_frame, x + fw + pad)
-            y2 = min(fh_frame, y + fh + pad)
-            face_img = frame[y1:y2, x1:x2]
-            if face_img.size == 0:
-                continue
-            out_path = os.path.join(save_dir, f"{next_idx:04d}.jpg")
-            cv2.imwrite(out_path, face_img)
-            saved += 1
-            next_idx += 1
-            if progress_callback:
-                try:
-                    result = progress_callback(saved, count)
-                    if result is False:
-                        break
-                except Exception:
-                    pass
-    finally:
-        cap.release()
-
-    return saved
-
-
-def train_class_model(class_id):
-    data_dir = os.path.join(_BASE, 'dataset', str(class_id))
-    trainer_dir = os.path.join(_BASE, 'trainer')
-    _ensure_dir(trainer_dir)
-    enc_path = os.path.join(trainer_dir, f"{class_id}_encodings.pkl")
-
-    if not os.path.exists(data_dir):
-        _log.error("train_class_model: dataset directory not found: %s", data_dir)
-        raise RuntimeError(f"Dataset directory not found: {data_dir}")
+def train_class_model(class_id: int) -> tuple:
+    """
+    Load all face images for a class from the database, compute SFace embeddings,
+    and store them back in the database. No filesystem access — uses cv2.imdecode.
+    Returns (unique_students, total_images_trained).
+    """
+    image_rows = get_all_images_for_class(class_id)
+    if not image_rows:
+        _log.error("train_class_model: no images found in DB for class_id=%s", class_id)
+        raise RuntimeError("No face images found in the database for this class. "
+                           "Register students before training.")
 
     recognizer = _get_recognizer()
     embeddings = []
     labels = []
-    total_images = 0
 
-    student_folders = [
-        d for d in os.listdir(data_dir)
-        if os.path.isdir(os.path.join(data_dir, d))
-    ]
-
-    for folder in student_folders:
-        student_dir = os.path.join(data_dir, folder)
-        image_files = [
-            os.path.join(student_dir, f)
-            for f in os.listdir(student_dir)
-            if f.lower().endswith(('.png', '.jpg', '.jpeg'))
-        ]
-        for img_path in image_files:
-            img = cv2.imread(img_path)
-            if img is None:
-                continue
-            h, w = img.shape[:2]
-            detector = _get_detector(w, h)  # cached per unique (w, h)
-            _, faces = detector.detect(img)
-            if faces is None or len(faces) == 0:
-                continue
-            face = faces[0]
+    for student_id, img_bytes in image_rows:
+        img_arr = np.frombuffer(img_bytes, dtype=np.uint8)
+        img = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
+        if img is None:
+            continue
+        h, w = img.shape[:2]
+        detector = _get_detector(w, h)
+        _, faces = detector.detect(img)
+        if faces is None or len(faces) == 0:
+            continue
+        face = faces[0]
+        try:
             aligned = recognizer.alignCrop(img, face)
-            embedding = recognizer.feature(aligned)
-            embeddings.append(embedding.flatten())
-            labels.append(folder)
-            total_images += 1
+            embedding = recognizer.feature(aligned).flatten()
+            embeddings.append(embedding)
+            labels.append(str(student_id))
+        except Exception:
+            _log.exception("train_class_model: failed to compute embedding for student_id=%s", student_id)
+            continue
 
-    if len(embeddings) == 0:
-        _log.error("train_class_model: no face embeddings found for class_id=%s", class_id)
-        raise RuntimeError('No face embeddings found to train for this class')
+    if not embeddings:
+        _log.error("train_class_model: no embeddings extracted for class_id=%s", class_id)
+        raise RuntimeError("No face embeddings could be extracted. "
+                           "Ensure students have clear face photos captured.")
 
-    data = {'embeddings': np.array(embeddings), 'labels': labels}
-    with open(enc_path, 'wb') as f:
-        pickle.dump(data, f)
-
-    # Drop stale cache so next recognition reads the freshly written file
+    save_class_encodings(class_id, labels, embeddings)
     _embedding_cache.pop(class_id, None)
 
-    return len(student_folders), total_images
+    unique_students = len(set(labels))
+    _log.info("train_class_model: class_id=%s trained — %d students, %d embeddings",
+              class_id, unique_students, len(embeddings))
+    return unique_students, len(embeddings)
 
 
 def _load_embeddings(class_id: int) -> tuple:
-    """Return (embeddings_matrix, labels), loading from disk only when the file changed."""
-    enc_path = os.path.join(_BASE, 'trainer', f"{class_id}_encodings.pkl")
-    if not os.path.exists(enc_path):
-        return None, []
+    """Return (embeddings_matrix, labels), loading from DB only when not cached."""
+    if class_id in _embedding_cache:
+        return _embedding_cache[class_id]
 
-    try:
-        mtime = os.path.getmtime(enc_path)
-    except OSError:
-        return None, []
+    emb, lbl = get_class_encodings(class_id)
+    if emb is not None and len(emb) > 0:
+        _embedding_cache[class_id] = (emb, lbl)
+        return emb, lbl
 
-    cached = _embedding_cache.get(class_id)
-    if cached is not None and cached[0] == mtime:
-        return cached[1], cached[2]
-
-    try:
-        with open(enc_path, 'rb') as f:
-            data = pickle.load(f)
-        emb = data.get('embeddings')
-        lbl = data.get('labels', [])
-        if emb is not None and len(emb) > 0:
-            _embedding_cache[class_id] = (mtime, emb, lbl)
-            return emb, lbl
-    except Exception:
-        _log.exception("_load_embeddings: failed to load encodings for class_id=%s from %s", class_id, enc_path)
     return None, []
 
 
-def recognize_face(face_aligned, class_id):
+def recognize_face(face_aligned, class_id: int) -> tuple:
     embeddings, labels = _load_embeddings(class_id)
     if embeddings is None or len(embeddings) == 0:
         return ("Unknown", 0)
@@ -207,7 +126,6 @@ def recognize_face(face_aligned, class_id):
     recognizer = _get_recognizer()
     query = recognizer.feature(face_aligned).flatten()
 
-    # Vectorized cosine similarity — ~50-100× faster than per-row recognizer.match() loop
     query_norm = np.linalg.norm(query)
     if query_norm < 1e-8:
         return ("Unknown", 0)
@@ -218,46 +136,24 @@ def recognize_face(face_aligned, class_id):
     best_score = float(scores[best_idx])
     best_label = labels[best_idx]
 
-    threshold = 0.363
-    if best_score >= threshold:
-        confidence = round(best_score * 100, 1)
-        return (best_label, confidence)
+    if best_score >= 0.363:
+        return (best_label, round(best_score * 100, 1))
     return ("Unknown", 0)
 
 
-def get_model_status(class_id):
-    enc_path = os.path.join(_BASE, 'trainer', f"{class_id}_encodings.pkl")
-    return os.path.exists(enc_path)
+def get_model_status(class_id: int) -> bool:
+    """Return True if trained embeddings exist in the database for this class."""
+    return has_class_encodings(class_id)
 
 
 def cleanup_student_dataset(student_id: str, class_id: int) -> bool:
-    """Delete the dataset folder for a given student within a class.
-
-    The folder name format used by capture_face_images is '<zfilled_id>_<name>'.
-    Since the name may not be known here, match any folder starting with the
-    zfilled student_id followed by an underscore, or the raw student_id.
-
-    Returns True if a folder was removed, False otherwise.
-    """
-    data_dir = os.path.join(_BASE, 'dataset', str(class_id))
-    if not os.path.exists(data_dir) or not os.path.isdir(data_dir):
+    """Delete all face images and encodings for a student from the database."""
+    try:
+        delete_student_images(str(student_id), class_id)
+        delete_student_encodings(str(student_id), class_id)
+        _embedding_cache.pop(class_id, None)
+        return True
+    except Exception:
+        _log.exception("cleanup_student_dataset: failed for student_id=%s class_id=%s",
+                       student_id, class_id)
         return False
-
-    targets = []
-    sid_z = str(student_id).zfill(3)
-    for entry in os.listdir(data_dir):
-        path = os.path.join(data_dir, entry)
-        if not os.path.isdir(path):
-            continue
-        if entry.startswith(f"{sid_z}_") or entry.startswith(f"{student_id}_") or entry == str(student_id):
-            targets.append(path)
-
-    removed_any = False
-    for tgt in targets:
-        try:
-            shutil.rmtree(tgt)
-            removed_any = True
-        except Exception:
-            continue
-
-    return removed_any

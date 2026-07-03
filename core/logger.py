@@ -1,11 +1,46 @@
 import logging
 import os
+import sys
+import tempfile
 from logging.handlers import RotatingFileHandler
 
-_BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_LOG_DIR = os.path.join(_BASE, "logs")
-os.makedirs(_LOG_DIR, exist_ok=True)
 
+def _resolve_log_dir() -> str:
+    """Find the first writable directory for logs, from most preferred to least."""
+    candidates = []
+
+    if not getattr(sys, 'frozen', False):
+        # Dev mode — prefer project-local logs/
+        candidates.append(
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+        )
+
+    # Frozen or dev fallback — standard Windows user-writable locations
+    appdata = os.environ.get("APPDATA") or os.environ.get("LOCALAPPDATA") or ""
+    localappdata = os.environ.get("LOCALAPPDATA") or ""
+    home = os.path.expanduser("~")
+
+    for base in filter(None, [appdata, localappdata, home]):
+        candidates.append(os.path.join(base, "NihareekaAttendance", "logs"))
+
+    # Last resort — temp dir (always writable)
+    candidates.append(os.path.join(tempfile.gettempdir(), "NihareekaAttendance", "logs"))
+
+    for path in candidates:
+        try:
+            os.makedirs(path, exist_ok=True)
+            probe = os.path.join(path, ".probe")
+            with open(probe, "w") as f:
+                f.write("")
+            os.remove(probe)
+            return path
+        except (PermissionError, OSError):
+            continue
+
+    return tempfile.gettempdir()
+
+
+_LOG_DIR = _resolve_log_dir()
 _LOG_FILE = os.path.join(_LOG_DIR, "app.log")
 
 _FMT = logging.Formatter(
@@ -28,7 +63,6 @@ def _get_file_handler() -> RotatingFileHandler:
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Return a module-level logger wired to logs/app.log (rotating, 5 MB × 3)."""
     logger = logging.getLogger(name)
     if logger.handlers:
         return logger
@@ -36,7 +70,6 @@ def get_logger(name: str) -> logging.Logger:
     logger.setLevel(logging.DEBUG)
     logger.addHandler(_get_file_handler())
 
-    # Console: WARNING+ only so production stdout stays clean
     ch = logging.StreamHandler()
     ch.setLevel(logging.WARNING)
     ch.setFormatter(_FMT)

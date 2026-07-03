@@ -15,14 +15,17 @@ except Exception:
     Image = None
     ImageTk = None
 
-from core.database import add_student, get_all_classes, log_action, get_all_students, get_archive
+from core.database import (
+    add_student, get_all_classes, log_action, get_all_students, get_archive,
+    save_student_images, delete_student_images,
+)
 from core.errors import (
     STUDENT_ID_CHECK_FAILED,
     REGISTRATION_FAILED,
     CLASS_LOAD_FAILED,
     CAPTURE_FAILED,
 )
-from core.face_engine import capture_face_images, train_class_model, cleanup_student_dataset
+from core.face_engine import train_class_model, cleanup_student_dataset
 from datetime import date, datetime
 from gui.widgets import ThemedDropdown, center_dialog
 
@@ -109,6 +112,7 @@ class RegisterPage(ctk.CTkFrame):
             font=ctk.CTkFont(size=15, weight="bold"),
             text_color=theme.TEXT_PRIMARY,
         ).grid(row=5, column=0, sticky="w", padx=22, pady=(0, 4))
+        self._dob_var = ctk.StringVar()
         self.dob_entry = ctk.CTkEntry(
             form,
             height=36,
@@ -118,8 +122,27 @@ class RegisterPage(ctk.CTkFrame):
             text_color=theme.TEXT_PRIMARY,
             placeholder_text_color=theme.TEXT_MUTED,
             corner_radius=6,
+            textvariable=self._dob_var,
         )
         self.dob_entry.grid(row=6, column=0, sticky="ew", padx=22, pady=(0, 10))
+
+        def _fmt_dob(*_):
+            raw = self._dob_var.get()
+            digits = "".join(c for c in raw if c.isdigit())[:8]
+            if len(digits) > 6:
+                formatted = f"{digits[:4]}-{digits[4:6]}-{digits[6:]}"
+            elif len(digits) > 4:
+                formatted = f"{digits[:4]}-{digits[4:]}"
+            else:
+                formatted = digits
+            if formatted != raw:
+                self._dob_var.set(formatted)
+                try:
+                    self.dob_entry._entry.icursor("end")
+                except Exception:
+                    pass
+
+        self._dob_var.trace_add("write", _fmt_dob)
 
         ctk.CTkLabel(
             form,
@@ -317,29 +340,13 @@ class RegisterPage(ctk.CTkFrame):
         cap_ref: list = [None]
 
         def _capture_worker():
-            import os as _os2
-            from pathlib import Path
             import cv2 as _cv2
-            from core.face_engine import _ensure_dir, _get_detector, _BASE
-
-            folder_name = f"{str(student_id).zfill(3)}_{display_name}"
-            save_dir = _os2.path.join(_BASE, 'dataset', str(class_id), folder_name)
-            _ensure_dir(save_dir)
-
-            existing = [f for f in _os2.listdir(save_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-            max_idx = 0
-            for fn in existing:
-                try:
-                    idx = int(_os2.path.splitext(fn)[0])
-                    if idx > max_idx:
-                        max_idx = idx
-                except Exception:
-                    pass
-            next_idx = max_idx + 1
+            from core.face_engine import _get_detector
 
             target = self._capture_target_count
             saved = 0
             error_msg = None
+            captured_images: list = []
 
             try:
                 cap = _cv2.VideoCapture(0)
@@ -384,10 +391,9 @@ class RegisterPage(ctk.CTkFrame):
                         y2 = min(fh_f, fy + fh + pad)
                         face_img = frame[y1:y2, x1:x2]
                         if face_img.size > 0:
-                            out_path = _os2.path.join(save_dir, f"{next_idx:04d}.jpg")
-                            _cv2.imwrite(out_path, face_img)
+                            _, buf = _cv2.imencode('.jpg', face_img)
+                            captured_images.append(buf.tobytes())
                             saved += 1
-                            next_idx += 1
                             _progress_queue.put(saved)
 
             except Exception as exc:
@@ -399,6 +405,7 @@ class RegisterPage(ctk.CTkFrame):
                 except Exception:
                     pass
                 _result["captured"] = saved
+                _result["images"] = captured_images
                 _result["error"] = error_msg
                 _result["done"] = True
 
@@ -467,7 +474,9 @@ class RegisterPage(ctk.CTkFrame):
             self.progress_bar.set(0.95)
 
             def _finish_worker():
+                images = _result.get("images", [])
                 try:
+                    save_student_images(student_id, class_id, images)
                     add_student(
                         student_id, first_name, middle_name, last_name,
                         class_id, self.username or "system",
@@ -484,6 +493,10 @@ class RegisterPage(ctk.CTkFrame):
                     self.after(0, self._on_register_success)
                 except Exception as err:
                     try:
+                        delete_student_images(student_id, class_id)
+                    except Exception:
+                        pass
+                    try:
                         cleanup_student_dataset(student_id, class_id)
                     except Exception:
                         pass
@@ -494,15 +507,12 @@ class RegisterPage(ctk.CTkFrame):
             threading.Thread(target=_finish_worker, daemon=True).start()
 
         def _stop_and_cleanup():
-            """Stop the capture thread and wipe any partially-captured photos."""
+            """Stop the capture thread. Images are held in memory until _finish_worker
+            saves them, so no database cleanup is needed here."""
             _stop.set()
             try:
                 if cap_ref[0]:
                     cap_ref[0].release()
-            except Exception:
-                pass
-            try:
-                cleanup_student_dataset(student_id, class_id)
             except Exception:
                 pass
             try:
