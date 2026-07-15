@@ -56,6 +56,7 @@ class AuditPage(ctk.CTkFrame):
         self._cached_audit:  list[dict] | None = None
         self._cached_export: list[dict] | None = None
         self._fetching = False
+        self._rendered = False
 
         self._view = "center"  # "audit" | "center" | "export"
 
@@ -224,6 +225,7 @@ class AuditPage(ctk.CTkFrame):
         self._fetching = False
         self._cached_audit  = audit_rows
         self._cached_export = export_rows
+        self._rendered = True
         self._render_audit(audit_rows)
         self._render_export(export_rows)
 
@@ -304,10 +306,12 @@ class AuditPage(ctk.CTkFrame):
 
     def _refresh_audit_clicked(self) -> None:
         self._cached_audit = None
+        self._rendered = False
         self._start_fetch()
 
     def _refresh_export_clicked(self) -> None:
         self._cached_export = None
+        self._rendered = False
         self._start_fetch()
 
     # ── Public API ────────────────────────────────────────────────────────
@@ -316,20 +320,17 @@ class AuditPage(ctk.CTkFrame):
         return self.role == "superadmin"
 
     def refresh(self) -> None:
-        # Called on initial load — use cache if available, else fetch
+        if self._rendered:
+            return
         if self._cached_audit is not None and self._cached_export is not None:
+            self._rendered = True
             self._render_audit(self._cached_audit)
             self._render_export(self._cached_export)
         else:
             self._start_fetch()
 
-    def update_user(self, username: str, role: str) -> None:
-        self.username = username
-        self.role = role
-        self._cached_audit  = None
-        self._cached_export = None
-        self._start_fetch()
-
     def _notify(self, message: str, kind: str) -> None:
-        if hasattr(self.master_frame, "show_notification"):
-            self.master_frame.show_notification(message, kind)
+        try:
+            self.winfo_toplevel().show_notification(message, kind)
+        except Exception:
+            pass

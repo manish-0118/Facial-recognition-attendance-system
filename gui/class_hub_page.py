@@ -189,7 +189,7 @@ class ClassHubPage(ctk.CTkFrame):
 
         win.bind("<Destroy>", _cleanup, add="+")
 
-    def _toggle_add_panel(self) -> None:
+    def _toggle_add_panel(self) -> None:  # noqa: C901
         win = self._add_win
         if win is not None:
             try:
@@ -202,6 +202,11 @@ class ClassHubPage(ctk.CTkFrame):
             except Exception:
                 pass
             self._add_win = None
+            try:
+                self.winfo_toplevel().lift()
+                self.winfo_toplevel().focus_force()
+            except Exception:
+                pass
             return
         self._open_add_overlay()
 
@@ -366,6 +371,10 @@ class ClassHubPage(ctk.CTkFrame):
             self._notify("Class added.", "success")
             self._toggle_add_panel()
             self._load_classes()
+            try:
+                self.winfo_toplevel().refresh_all_views()
+            except Exception:
+                pass
         except Exception as e:
             self._add_status_var.set(f"Error: {e}")
 
@@ -1862,10 +1871,26 @@ class ClassHubPage(ctk.CTkFrame):
             return str(d)
 
     def _notify(self, message: str, kind: str) -> None:
-        if hasattr(self.master_frame, 'show_notification'):
-            self.master_frame.show_notification(message, kind)
-        elif hasattr(self.master_frame, 'notifications') and hasattr(self.master_frame.notifications, 'show'):
-            self.master_frame.notifications.show(message, kind=kind)
+        try:
+            self.winfo_toplevel().show_notification(message, kind)
+        except Exception:
+            pass
+
+    def refresh(self) -> None:
+        try:
+            self._load_classes()
+        except Exception:
+            pass
+
+    def go_home(self) -> None:
+        """Reset to Level 0 (class cards) — triggered by double-clicking sidebar."""
+        try:
+            self.level2.grid_remove()
+            self.level1.grid_remove()
+            self.level0.grid()
+            self._load_classes()
+        except Exception:
+            pass
 
     def _display_name(self, row: dict) -> str:
         fn = row.get('first_name')

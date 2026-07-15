@@ -36,13 +36,11 @@ class RegisterPage(ctk.CTkFrame):
         master,
         username: str = "",
         role: str = "",
-        pre_selected_class_id: int | None = None,
     ) -> None:
         super().__init__(master, fg_color="transparent")
         self.master_frame = master
         self.username = username
         self.role = role
-        self.pre_selected_class_id = pre_selected_class_id
         self._classes: list[dict] = []
         self._class_map: dict[str, dict] = {}
         self._capture_target_count = 12
@@ -137,8 +135,13 @@ class RegisterPage(ctk.CTkFrame):
                 formatted = digits
             if formatted != raw:
                 self._dob_var.set(formatted)
+                # Defer cursor-to-end so it runs after Tkinter's own cursor
+                # repositioning from the textvariable update, otherwise the
+                # cursor lands before the digit instead of after it.
                 try:
-                    self.dob_entry._entry.icursor("end")
+                    inner = getattr(self.dob_entry, '_entry', None) or getattr(self.dob_entry, 'entry', None)
+                    if inner:
+                        self.dob_entry.after(0, lambda e=inner: e.icursor("end"))
                 except Exception:
                     pass
 
@@ -297,9 +300,7 @@ class RegisterPage(ctk.CTkFrame):
         address: str | None = None,
     ) -> None:
         """Open a live camera preview window and capture face images while showing progress."""
-        import os as _os
         import queue as _queue
-        from core.face_engine import capture_face_images as _capture
 
         dlg = ctk.CTkToplevel(self)
         dlg.title(f"Capturing — {display_name}")
@@ -455,6 +456,11 @@ class RegisterPage(ctk.CTkFrame):
                 dlg.destroy()
             except Exception:
                 pass
+            try:
+                self.winfo_toplevel().lift()
+                self.winfo_toplevel().focus_force()
+            except Exception:
+                pass
 
             if _result["error"]:
                 self.status_label.configure(text=CAPTURE_FAILED, text_color=theme.DANGER)
@@ -528,6 +534,11 @@ class RegisterPage(ctk.CTkFrame):
                 text="Capture cancelled. Photos discarded — fill the form and try again.",
                 text_color=theme.TEXT_SECONDARY,
             )
+            try:
+                self.winfo_toplevel().lift()
+                self.winfo_toplevel().focus_force()
+            except Exception:
+                pass
 
         def _retake():
             _stop_and_cleanup()
@@ -558,17 +569,6 @@ class RegisterPage(ctk.CTkFrame):
         threading.Thread(target=_capture_worker, daemon=True).start()
         dlg.after(30, _update_ui)
 
-    def _on_capture_progress(self, current: int, total: int) -> None:
-        self.after(0, lambda: self._apply_progress(current, total))
-
-    def _apply_progress(self, current: int, total: int) -> None:
-        if total > 0:
-            self.progress_bar.set(min(max(current / total, 0.0), 1.0))
-        self.status_label.configure(
-            text=f"Capturing image {current} of {total}",
-            text_color=theme.TEXT_SECONDARY,
-        )
-
     def _on_register_success(self) -> None:
         self.status_label.configure(
             text="Student registered and model updated successfully",
@@ -590,18 +590,20 @@ class RegisterPage(ctk.CTkFrame):
             pass
         self.class_dropdown.set("Select Class")
         self.progress_bar.set(0)
-        if hasattr(self.master_frame, "refresh_all_views"):
-            self.master_frame.refresh_all_views()
+        try:
+            self.winfo_toplevel().refresh_all_views()
+        except Exception:
+            pass
 
     def _on_register_failure(self, error: Exception) -> None:
         self.status_label.configure(text=REGISTRATION_FAILED, text_color=theme.DANGER)
         self._notify("Registration failed.", "error")
 
     def _notify(self, message: str, kind: str) -> None:
-        if hasattr(self.master_frame, "show_notification"):
-            self.master_frame.show_notification(message, kind)
-        elif hasattr(self.master_frame, "notifications") and hasattr(self.master_frame.notifications, "show"):
-            self.master_frame.notifications.show(message, kind=kind)
+        try:
+            self.winfo_toplevel().show_notification(message, kind)
+        except Exception:
+            pass
 
     def _set_busy(self, busy: bool) -> None:
         self._capture_busy = busy
@@ -616,14 +618,6 @@ class RegisterPage(ctk.CTkFrame):
 
     def _label_for_class(self, row: dict) -> str:
         return f"{row.get('name', '')} - {row.get('section', '')}"
-
-    def _apply_pre_selected_class(self) -> None:
-        if self.pre_selected_class_id is None:
-            return
-        for label, row in self._class_map.items():
-            if int(row.get("id", -1)) == int(self.pre_selected_class_id):
-                self.class_dropdown.set(label)
-                return
 
     def refresh(self) -> None:
         try:
@@ -641,7 +635,6 @@ class RegisterPage(ctk.CTkFrame):
 
         self.class_dropdown.configure(values=options)
         self.class_dropdown.set("Select Class")
-        self._apply_pre_selected_class()
 
         if not self._classes:
             self.status_label.configure(text="Please add a class first", text_color=theme.DANGER)
@@ -653,14 +646,6 @@ class RegisterPage(ctk.CTkFrame):
                 text="Fill the form and click Start Capture.",
                 text_color=theme.TEXT_SECONDARY,
             )
-
-    def update_user(self, username: str, role: str) -> None:
-        self.username = username
-        self.role = role
-
-    def set_pre_selected_class(self, class_id: int | None) -> None:
-        self.pre_selected_class_id = class_id
-        self._apply_pre_selected_class()
 
     # ---------- Profile photo helpers ----------
     def _open_camera_capture_popup(self) -> None:

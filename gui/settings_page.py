@@ -1,5 +1,5 @@
+import time
 import customtkinter as ctk
-from tkinter import messagebox
 from core.database import (
     get_system_config,
     update_system_config,
@@ -29,11 +29,16 @@ class SettingsPage(ctk.CTkFrame):
         container.grid(row=0, column=0, sticky="nsew", padx=40, pady=8)
         container.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(
+        self._tap_count: int = 0
+        self._last_tap_time: float = 0.0
+
+        _title = ctk.CTkLabel(
             container, text="Settings",
             font=ctk.CTkFont(size=18, weight="bold"),
             text_color=theme.TEXT_PRIMARY,
-        ).grid(row=0, column=0, sticky="w", padx=12, pady=(8, 12))
+        )
+        _title.grid(row=0, column=0, sticky="w", padx=12, pady=(8, 12))
+        _title.bind("<Button-1>", self._on_settings_tap)
 
         # ── Attendance Timing card ─────────────────────────────────────────────
         timing_card = ctk.CTkFrame(container, fg_color=theme.BG_SURFACE, corner_radius=10)
@@ -171,20 +176,13 @@ class SettingsPage(ctk.CTkFrame):
         )
         self.save_class_btn.grid(row=7, column=0, sticky="ew")
 
-        # ── Developer tools — superadmin only ─────────────────────────────────
-        self.dev_mode_var = ctk.BooleanVar(value=False)
+        # ── Developer tools — superadmin only, hidden until unlocked ─────────────
         self._dev_class_map: dict = {}
+        self._dev_unlocked: bool = False
 
         if role == "superadmin":
-            self.dev_mode_switch = ctk.CTkSwitch(
-                container,
-                text="Developer Mode — Testing Only",
-                variable=self.dev_mode_var,
-                command=self.toggle_dev_mode,
-            )
-            self.dev_mode_switch.grid(row=2, column=0, sticky="w", padx=12, pady=(4, 8))
-
-            self.dev_card = ctk.CTkFrame(container, fg_color=theme.BG_SURFACE, corner_radius=10)
+            self.dev_card = ctk.CTkFrame(container, fg_color=theme.BG_SURFACE, corner_radius=10, width=440)
+            self.dev_card.grid_propagate(False)
             self.dev_card.grid_columnconfigure(0, weight=1)
 
             ctk.CTkLabel(
@@ -318,14 +316,29 @@ class SettingsPage(ctk.CTkFrame):
 
     # ── Developer tools ───────────────────────────────────────────────────────
 
-    def toggle_dev_mode(self):
-        if not hasattr(self, "dev_card"):
+    def _on_settings_tap(self, _event=None) -> None:
+        """Count rapid taps on the Settings label; 7 in a row unlocks dev mode."""
+        if self.role != "superadmin" or self._dev_unlocked:
             return
         try:
-            if self.dev_mode_var.get():
-                self.dev_card.grid(row=3, column=0, sticky="ew", padx=12, pady=(0, 12))
-            else:
-                self.dev_card.grid_forget()
+            now = time.monotonic()
+            if now - self._last_tap_time > 1.5:
+                self._tap_count = 0
+            self._last_tap_time = now
+            self._tap_count += 1
+            if self._tap_count >= 7:
+                self._tap_count = 0
+                self._unlock_dev_mode()
+        except Exception:
+            pass
+
+    def _unlock_dev_mode(self) -> None:
+        if self._dev_unlocked or not hasattr(self, "dev_card"):
+            return
+        try:
+            self._dev_unlocked = True
+            self.dev_card.grid(row=3, column=0, sticky="", pady=(0, 12))
+            self._notify("Developer mode enabled.", "success")
         except Exception:
             pass
 
@@ -350,17 +363,24 @@ class SettingsPage(ctk.CTkFrame):
             self._notify("Failed to reset attendance.", "error")
 
     def _run_finalization_now(self):
+        cid = self._get_selected_dev_class_id()
+        if cid is None:
+            self._notify("Select a class first.", "error")
+            return
         try:
-            finalize_attendance()
+            finalize_attendance(cid, date.today())
             self._notify("Finalization run.", "success")
         except Exception as e:
             self._notify(f"Finalization failed: {e}", "error")
 
+    def refresh(self) -> None:
+        try:
+            self._load_classes()
+        except Exception:
+            pass
+
     def _notify(self, message: str, kind: str) -> None:
-        if hasattr(self.master_frame, "show_notification"):
-            try:
-                self.master_frame.show_notification(message, kind)
-                return
-            except Exception:
-                pass
-        messagebox.showinfo("Info", message)
+        try:
+            self.winfo_toplevel().show_notification(message, kind)
+        except Exception:
+            pass

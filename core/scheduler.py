@@ -13,7 +13,6 @@ from core.database import (
 from core.database import get_system_config
 from core.logger import get_logger
 from datetime import time as _time
-from datetime import datetime as _dt
 
 _log = get_logger(__name__)
 
@@ -32,7 +31,7 @@ def _parse_time(val) -> _time | None:
             return None
         for fmt in ("%H:%M:%S", "%H:%M"):
             try:
-                return _dt.strptime(s, fmt).time()
+                return datetime.strptime(s, fmt).time()
             except Exception:
                 continue
     except Exception:

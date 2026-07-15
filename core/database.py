@@ -1396,7 +1396,7 @@ def get_audit_log() -> list[dict]:
     try:
         conn = get_connection()
         cur = conn.cursor(dictionary=True)
-        cur.execute("SELECT * FROM audit_log ORDER BY timestamp DESC")
+        cur.execute("SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT 500")
         rows = cur.fetchall()
         cur.close()
         return rows
@@ -1414,7 +1414,7 @@ def get_exports_log() -> list[dict]:
     try:
         conn = get_connection()
         cur = conn.cursor(dictionary=True)
-        cur.execute("SELECT * FROM exports_log ORDER BY timestamp DESC")
+        cur.execute("SELECT * FROM exports_log ORDER BY timestamp DESC LIMIT 500")
         rows = cur.fetchall()
         cur.close()
         return rows

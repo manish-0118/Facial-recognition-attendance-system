@@ -280,7 +280,7 @@ class ExportPage(ctk.CTkFrame):
         return result["password"]
 
     def _verify_export_password(self) -> bool:
-        admin_username = self.username or getattr(self.master_frame, "session_admin_username", None)
+        admin_username = self.username
         if not admin_username:
             self._notify("Invalid credentials. Export cancelled.", "error")
             self._set_status("Export cancelled because no logged-in admin was found.", "error")
@@ -476,7 +476,7 @@ class ExportPage(ctk.CTkFrame):
                 dataframe = self._build_export_dataframe(rows)
                 self._export_excel(report_path, dataframe)
 
-            log_export(self.username or getattr(self.master_frame, "session_admin_username", "system"), export_type, report_path.name)
+            log_export(self.username or "system", export_type, report_path.name)
         except Exception as error:
             self._set_status(f"Export failed: {error}", "error")
             self._notify("Export failed.", "error")
@@ -495,11 +495,7 @@ class ExportPage(ctk.CTkFrame):
         self.status_label.configure(text=message, text_color="#6FD36F" if kind == "success" else "#FF5252")
 
     def _notify(self, message: str, kind: str) -> None:
-        if hasattr(self.master_frame, "show_notification"):
-            self.master_frame.show_notification(message, kind)
-        elif hasattr(self.master_frame, "notifications") and hasattr(self.master_frame.notifications, "show"):
-            self.master_frame.notifications.show(message, kind=kind)
-
-    def update_user(self, username: str, role: str) -> None:
-        self.username = username
-        self.role = role
+        try:
+            self.winfo_toplevel().show_notification(message, kind)
+        except Exception:
+            pass

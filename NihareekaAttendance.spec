@@ -16,7 +16,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('models/*.onnx',                         'models'),
-        ('cascades/haarcascade_frontalface_default.xml', 'cascades'),
+        ('cascades/*.xml',                               'cascades'),
         ('assets/favicon.ico',                    'assets'),
         *ctk_datas,
     ],

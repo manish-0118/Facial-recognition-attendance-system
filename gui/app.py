@@ -26,7 +26,7 @@ from .register_page import RegisterPage
 from .class_hub_page import ClassHubPage
 from gui.settings_page import SettingsPage
 from gui import theme
-from gui.widgets import AutoScrollFrame, center_dialog
+from gui.widgets import AutoScrollFrame, center_dialog, close_all_floating_popups
 
 
 WINDOW_TITLE  = "Biometric Attendance System"
@@ -44,7 +44,6 @@ _NAV_ICONS: dict[str, str] = {
     "Audit Log":        "",   # Zoom / Audit
     "Settings":         "",   # Settings gear
 }
-_LOGOUT_ICON = ""             # SignOut
 
 
 class _SidebarNavBtn(tk.Frame):
@@ -56,9 +55,10 @@ class _SidebarNavBtn(tk.Frame):
     one-frame transparency flicker that CTkFrame's canvas causes.
     """
 
-    def __init__(self, master, icon: str, text: str, command, **kwargs) -> None:
+    def __init__(self, master, icon: str, text: str, command, double_command=None, **kwargs) -> None:
         super().__init__(master, bg=theme.SIDEBAR_BG, cursor="hand2", **kwargs)
         self._command = command
+        self._double_command = double_command
         self._active  = False
 
         self._icon_lbl = tk.Label(
@@ -80,9 +80,10 @@ class _SidebarNavBtn(tk.Frame):
         self._text_lbl.pack(side="left", padx=(8, 10), pady=9, fill="x", expand=True)
 
         for w in (self, self._icon_lbl, self._text_lbl):
-            w.bind("<Button-1>", lambda _e: self._command())
-            w.bind("<Enter>",    self._on_enter)
-            w.bind("<Leave>",    self._on_leave)
+            w.bind("<Button-1>",        lambda _e: self._command())
+            w.bind("<Double-Button-1>", lambda _e: self._double_command() if self._double_command else None)
+            w.bind("<Enter>",           self._on_enter)
+            w.bind("<Leave>",           self._on_leave)
 
     # ── background helper (all three widgets updated in one shot) ─────────
 
@@ -132,22 +133,14 @@ TIMEOUT_CHECK_MS = 30_000
 
 BASE_NAV_ITEMS = [
     "Dashboard",
-    "Classes",
+    "Register Student",
     "Take Attendance",
+    "Classes",
     "Export",
     "Archive",
-    "Register Student",
     "Settings",
 ]
 SUPERADMIN_ITEMS = ["Admin Management", "Audit Log"]
-
-
-class _NotificationProxy:
-    def __init__(self, app: "App") -> None:
-        self._app = app
-
-    def show(self, message: str, kind: str = "success") -> None:
-        self._app.show_notification(message, kind)
 
 
 class App(ctk.CTk):
@@ -329,6 +322,7 @@ class App(ctk.CTk):
                 icon=icon,
                 text=item,
                 command=lambda i=item: self.show_page(i),
+                double_command=lambda i=item: self._go_page_home(i),
             )
             btn.pack(fill="x", padx=8, pady=2)
             self._nav_buttons[item] = btn
@@ -410,6 +404,18 @@ class App(ctk.CTk):
             dlg.destroy()
             self.logout()
 
+        def _cancel_logout():
+            try:
+                dlg.grab_release()
+            except Exception:
+                pass
+            dlg.destroy()
+            try:
+                self.lift()
+                self.focus_force()
+            except Exception:
+                pass
+
         ctk.CTkButton(
             btn_frame,
             text="Yes, Logout",
@@ -427,7 +433,7 @@ class App(ctk.CTk):
             hover_color=theme.BTN_SECONDARY_HVR,
             text_color=theme.TEXT_PRIMARY,
             corner_radius=6,
-            command=dlg.destroy,
+            command=_cancel_logout,
         ).pack(side="left", expand=True, fill="x")
 
     # ── Page management ───────────────────────────────────────────────────────
@@ -450,6 +456,7 @@ class App(ctk.CTk):
                 role=self.logged_in_role,
             )
             page.grid(row=0, column=0, sticky="nsew")
+            wrapper._page = page
 
             self._page_cache[page_name] = wrapper
             if raise_to_top:
@@ -489,10 +496,15 @@ class App(ctk.CTk):
         if page_name in self._page_cache:
             wrapper = self._page_cache[page_name]
             try:
+                close_all_floating_popups()
                 wrapper.tkraise()
                 self.update_idletasks()
                 self._current_page = wrapper
                 self._update_active_nav(page_name)
+                self.focus_force()
+                page = getattr(wrapper, '_page', None)
+                if page and hasattr(page, 'refresh'):
+                    page.refresh()
                 return
             except Exception:
                 _log.exception("Failed to raise cached page: %s", page_name)
@@ -601,6 +613,27 @@ class App(ctk.CTk):
         else:
             self._schedule_timeout_check()
 
+
+    def _go_page_home(self, page_name: str) -> None:
+        """Double-click sidebar — Button-1 already navigated; just reset to home level."""
+        wrapper = self._page_cache.get(page_name)
+        if wrapper:
+            page = getattr(wrapper, '_page', None)
+            if page and hasattr(page, 'go_home'):
+                try:
+                    page.go_home()
+                except Exception:
+                    _log.exception("go_home failed for %s", page_name)
+
+    def refresh_all_views(self) -> None:
+        """Call refresh() on every cached page that exposes it."""
+        for wrapper in list(self._page_cache.values()):
+            page = getattr(wrapper, '_page', None)
+            if page and hasattr(page, 'refresh'):
+                try:
+                    page.refresh()
+                except Exception:
+                    _log.exception("refresh_all_views: error in %s", type(page).__name__)
 
     def show_notification(self, message: str, kind: str = "success") -> None:
         if self._toast:

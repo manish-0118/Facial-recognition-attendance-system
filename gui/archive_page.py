@@ -53,35 +53,6 @@ class ArchivePage(ctk.CTkFrame):
 
         self.refresh()
 
-    def _build_toolbar(self, parent) -> None:
-        toolbar = ctk.CTkFrame(parent, fg_color="transparent")
-        toolbar.grid(row=0, column=0, sticky="ew", padx=20, pady=(20, 10))
-        toolbar.grid_columnconfigure(0, weight=1)
-
-        ctk.CTkLabel(
-            toolbar,
-            text="Archived Students",
-            font=ctk.CTkFont(size=18, weight="bold"),
-            text_color="white",
-        ).grid(row=0, column=0, sticky="w")
-
-        self.count_label = ctk.CTkLabel(
-            toolbar,
-            text="0 archived students",
-            font=ctk.CTkFont(size=13),
-            text_color="#888888",
-        )
-        self.count_label.grid(row=1, column=0, sticky="w", pady=(4, 0))
-
-        ctk.CTkButton(
-            toolbar,
-            text="Refresh Archive",
-            command=self.refresh,
-            fg_color="#1E88E5",
-            hover_color="#1565C0",
-            width=140,
-        ).grid(row=0, column=1, rowspan=2, sticky="e")
-
     def _build_table(self, parent) -> None:
         # table card
         card = ctk.CTkFrame(parent, fg_color=theme.BG_SURFACE, corner_radius=12)
@@ -118,10 +89,10 @@ class ArchivePage(ctk.CTkFrame):
         )
 
     def _notify(self, message: str, kind: str) -> None:
-        if hasattr(self.master_frame, "show_notification"):
-            self.master_frame.show_notification(message, kind)
-        elif hasattr(self.master_frame, "notifications") and hasattr(self.master_frame.notifications, "show"):
-            self.master_frame.notifications.show(message, kind=kind)
+        try:
+            self.winfo_toplevel().show_notification(message, kind)
+        except Exception:
+            pass
 
     def _class_name_from_id(self, class_id: int | None) -> str:
         if class_id is None:
@@ -200,16 +171,15 @@ class ArchivePage(ctk.CTkFrame):
                 f"student_id={student_id}",
             )
         except Exception as error:
-            # If restore failed with a specific message, show it; otherwise show generic
             msg = str(error) if str(error) else "Failed to restore student."
             self._notify(msg, "error")
-            if hasattr(self.app, "show_action_error"):
-                self.master_frame.show_action_error("Archive", "Unable to restore the archived student.", error)
             return
 
         self.refresh()
-        if hasattr(self.master_frame, "refresh_all_views"):
-            self.master_frame.refresh_all_views()
+        try:
+            self.winfo_toplevel().refresh_all_views()
+        except Exception:
+            pass
         self._notify("Student restored successfully", "success")
 
     def _handle_permanent_delete(self, student_id: str, student_name: str) -> None:
@@ -283,8 +253,6 @@ class ArchivePage(ctk.CTkFrame):
                 )
             except Exception as error:
                 self._notify("Failed to permanently delete student.", "error")
-                if hasattr(self.master_frame, "show_action_error"):
-                    self.master_frame.show_action_error("Archive", "Unable to permanently delete the archived student.", error)
                 return
 
             try:
@@ -294,8 +262,10 @@ class ArchivePage(ctk.CTkFrame):
             dlg.destroy()
 
             self.refresh()
-            if hasattr(self.master_frame, "refresh_all_views"):
-                self.master_frame.refresh_all_views()
+            try:
+                self.winfo_toplevel().refresh_all_views()
+            except Exception:
+                pass
             self._notify(f"Student permanently deleted. Also removed {attendance_deleted} attendance records.", "success")
 
         ctk.CTkButton(actions, text="Cancel", command=dlg.destroy, corner_radius=6).pack(side="left")
@@ -381,13 +351,7 @@ class ArchivePage(ctk.CTkFrame):
             rows = get_archive()
         except Exception as error:
             self._notify("Failed to load archive.", "error")
-            if hasattr(self.app, "show_action_error"):
-                self.app.show_action_error("Archive", "Unable to load archived students.", error)
             return
 
         self._render_rows(rows)
 
-    def update_user(self, username: str, role: str) -> None:
-        self.username = username
-        self.role = role
-        self.refresh()

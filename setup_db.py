@@ -160,7 +160,7 @@ def main():
     }
     cfg["app"] = {
         "late_cutoff_time": "06:30", "absent_cutoff_time": "07:00",
-        "max_classes": "20", "backup_frequency": "daily",
+        "max_classes": "20",
     }
     cfg["mariadb_internal"] = {
         "root_password": root_pw, "port": str(PORT), "data_dir": data_dir,

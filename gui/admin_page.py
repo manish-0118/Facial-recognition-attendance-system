@@ -226,17 +226,10 @@ class AdminPage(ctk.CTkFrame):
                 self._cpw_eye_btn.configure(text="🙈")
 
     def _notify(self, message: str, kind: str) -> None:
-        if hasattr(self.master_frame, "show_notification"):
-            try:
-                self.master_frame.show_notification(message, kind)
-                return
-            except Exception:
-                pass
-        if hasattr(self.master_frame, "notifications") and hasattr(self.master_frame.notifications, "show"):
-            try:
-                self.master_frame.notifications.show(message, kind=kind)
-            except Exception:
-                pass
+        try:
+            self.winfo_toplevel().show_notification(message, kind)
+        except Exception:
+            pass
 
     def _is_superadmin(self) -> bool:
         return self.role == "superadmin"
@@ -316,13 +309,8 @@ class AdminPage(ctk.CTkFrame):
 
         try:
             existing_admins = get_all_admins()
-        except Exception as error:
+        except Exception:
             self._notify("Unable to validate admin username.", "error")
-            if hasattr(self.master_frame, "show_action_error"):
-                try:
-                    self.master_frame.show_action_error("Admin Management", "Unable to validate admin username.", error)
-                except Exception:
-                    pass
             return
 
         existing_usernames = {str(admin.get("username", "")).strip().lower() for admin in existing_admins}
@@ -333,13 +321,8 @@ class AdminPage(ctk.CTkFrame):
         try:
             add_admin(username, password, role, self.username or "system")
             log_action(self.username or "system", "ADD_ADMIN", f"username={username}; role={role}")
-        except Exception as error:
+        except Exception:
             self._notify("Failed to create admin.", "error")
-            if hasattr(self.master_frame, "show_action_error"):
-                try:
-                    self.master_frame.show_action_error("Admin Management", "Unable to create admin account.", error)
-                except Exception:
-                    pass
             return
 
         self.username_entry.delete(0, "end")
@@ -364,13 +347,8 @@ class AdminPage(ctk.CTkFrame):
         try:
             delete_admin(target_username)
             log_action(self.username or "system", "DELETE_ADMIN", f"username={target_username}")
-        except Exception as error:
+        except Exception:
             self._notify("Failed to delete admin.", "error")
-            if hasattr(self.master_frame, "show_action_error"):
-                try:
-                    self.master_frame.show_action_error("Admin Management", "Unable to delete admin account.", error)
-                except Exception:
-                    pass
             return
 
         self.refresh()
@@ -426,19 +404,9 @@ class AdminPage(ctk.CTkFrame):
     def refresh(self) -> None:
         try:
             rows = get_all_admins()
-        except Exception as error:
+        except Exception:
             self._notify("Failed to load admins.", "error")
-            if hasattr(self.master_frame, "show_action_error"):
-                try:
-                    self.master_frame.show_action_error("Admin Management", "Unable to load admin accounts.", error)
-                except Exception:
-                    pass
             return
 
         self._set_controls_enabled(self._is_superadmin())
         self._render_rows(rows)
-
-    def update_user(self, username: str, role: str) -> None:
-        self.username = username
-        self.role = role
-        self.refresh()

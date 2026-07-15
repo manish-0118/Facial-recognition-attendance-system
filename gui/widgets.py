@@ -3,10 +3,50 @@ from __future__ import annotations
 import calendar as _cal_mod
 import os as _os
 import tkinter as tk
+import weakref
 import customtkinter as ctk
 from datetime import date
 
 from gui import theme
+
+# ── floating-popup registry ───────────────────────────────────────────────────
+# Tracks every widget that currently has a floating popup placed on root.
+# close_all_floating_popups() is called by show_page() before navigation so
+# stale popups never overlay a different page and block clicks.
+_floating_open: weakref.WeakSet = weakref.WeakSet()
+
+
+def close_all_floating_popups() -> None:
+    """Close every open dropdown / date-picker popup.  Called on page navigation."""
+    for widget in list(_floating_open):
+        try:
+            if hasattr(widget, '_collapse'):
+                widget._collapse()
+            elif hasattr(widget, '_close_popup'):
+                widget._close_popup()
+            elif hasattr(widget, '_close'):
+                widget._close()
+        except Exception:
+            pass
+
+
+def _safe_unbind(widget: tk.Misc, sequence: str, funcid: str) -> None:
+    """Remove one specific handler without clearing sibling handlers.
+
+    Python < 3.12 widget.unbind(seq, funcid) is broken: it clears ALL handlers
+    for that sequence, not just the requested one.  This reimplements the fix
+    that landed in CPython 3.12 (bpo-36817).
+    """
+    try:
+        current = widget.tk.call('bind', widget._w, sequence)
+        if not current:
+            widget.tk.deletecommand(funcid)
+            return
+        new_lines = [l for l in current.split('\n') if funcid not in l]
+        widget.tk.call('bind', widget._w, sequence, '\n'.join(new_lines))
+        widget.tk.deletecommand(funcid)
+    except Exception:
+        pass
 
 _FAVICON = _os.path.abspath(_os.path.join(
     _os.path.dirname(_os.path.dirname(__file__)), "assets", "favicon.ico"
@@ -347,6 +387,7 @@ class ThemedDropdown(ctk.CTkFrame):
 
         popup.place(x=trigger_x, y=y, width=trigger_w, height=popup_h)
         popup.lift()
+        _floating_open.add(self)
 
         # Collapse on any click outside both trigger and popup
         def _on_outside_click(event) -> None:
@@ -376,6 +417,7 @@ class ThemedDropdown(ctk.CTkFrame):
         if not self._expanded:
             return
         self._expanded = False
+        _floating_open.discard(self)
 
         try:
             self._arrow_lbl.configure(text="▾")
@@ -398,10 +440,7 @@ class ThemedDropdown(ctk.CTkFrame):
         bid = self._root_bid
         self._root_bid = None
         if bid is not None:
-            try:
-                self.winfo_toplevel().unbind("<ButtonPress-1>", bid)
-            except Exception:
-                pass
+            _safe_unbind(self.winfo_toplevel(), "<ButtonPress-1>", bid)
 
     def _select(self, value: str) -> None:
         self._collapse()
@@ -413,13 +452,11 @@ class ThemedDropdown(ctk.CTkFrame):
                 pass
 
     def _cleanup(self) -> None:
+        _floating_open.discard(self)
         bid = self._root_bid
         self._root_bid = None
         if bid is not None:
-            try:
-                self.winfo_toplevel().unbind("<ButtonPress-1>", bid)
-            except Exception:
-                pass
+            _safe_unbind(self.winfo_toplevel(), "<ButtonPress-1>", bid)
         popup = self._popup
         self._popup = None
         if popup is not None:
@@ -574,6 +611,7 @@ class ThemedRangePicker(ctk.CTkFrame):
         # Constraining height before CTk widgets finish rendering clips the popup.
         popup.place(x=x, y=y, width=self._POPUP_W)
         popup.lift()
+        _floating_open.add(self)
         # Re-lift after CTk redraws so the popup stays on top.
         root.after(10, lambda: popup.lift() if self._popup is popup else None)
         self._refresh_fields()
@@ -599,6 +637,7 @@ class ThemedRangePicker(ctk.CTkFrame):
 
     def _close_popup(self) -> None:
         self._month_lbl = self._hint_lbl = self._range_lbl = self._day_grid = None
+        _floating_open.discard(self)
 
         popup = self._popup
         self._popup = None
@@ -612,10 +651,7 @@ class ThemedRangePicker(ctk.CTkFrame):
         bid = self._root_bid
         self._root_bid = None
         if bid is not None:
-            try:
-                self.winfo_toplevel().unbind("<ButtonPress-1>", bid)
-            except Exception:
-                pass
+            _safe_unbind(self.winfo_toplevel(), "<ButtonPress-1>", bid)
 
         self._refresh_fields()
 
@@ -895,13 +931,11 @@ class ThemedRangePicker(ctk.CTkFrame):
     # ── cleanup ───────────────────────────────────────────────────────────────
 
     def _cleanup(self) -> None:
+        _floating_open.discard(self)
         bid = self._root_bid
         self._root_bid = None
         if bid is not None:
-            try:
-                self.winfo_toplevel().unbind("<ButtonPress-1>", bid)
-            except Exception:
-                pass
+            _safe_unbind(self.winfo_toplevel(), "<ButtonPress-1>", bid)
         popup = self._popup
         self._popup = None
         if popup is not None:
@@ -1106,6 +1140,7 @@ class SingleDatePicker(ctk.CTkFrame):
 
         popup.place(x=x, y=y, width=self._POPUP_W)
         popup.lift()
+        _floating_open.add(self)
         root.after(10, lambda: popup.lift() if self._popup is popup else None)
 
         def _outside(event: tk.Event) -> None:
@@ -1131,6 +1166,7 @@ class SingleDatePicker(ctk.CTkFrame):
         self._prev_btn = self._next_btn = None
         self._month_name_lbl = self._year_lbl = None
         self._grid = None
+        _floating_open.discard(self)
         popup, self._popup = self._popup, None
         if popup:
             try:
@@ -1140,10 +1176,7 @@ class SingleDatePicker(ctk.CTkFrame):
                 pass
         bid, self._outside_bid = self._outside_bid, None
         if bid:
-            try:
-                self.winfo_toplevel().unbind("<ButtonPress-1>", bid)
-            except Exception:
-                pass
+            _safe_unbind(self.winfo_toplevel(), "<ButtonPress-1>", bid)
 
     # ── calendar rendering ───────────────────────────────────────────────────
 

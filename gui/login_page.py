@@ -7,7 +7,6 @@ from core.errors import DatabaseUnavailableError, DatabaseOperationError, LOGIN_
 from gui import theme
 from gui.widgets import make_eye_image as _make_eye_image
 
-_CARD_WIDTH = 440
 _SUBTITLE = "Nihareeka College of Management and Information Technology"
 
 

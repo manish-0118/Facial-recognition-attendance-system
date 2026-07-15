@@ -60,3 +60,9 @@ class_diagram_prompt.md
 techstack.md
 deployment_diagram_prompt.md
 
+# AI assistant files
+CLAUDE.md
+claude_planning/
+context_window.md
+*.jsonl
+

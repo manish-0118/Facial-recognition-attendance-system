@@ -42,19 +42,6 @@ def _get_recognizer():
     return _recognizer
 
 
-def detect_faces(frame):
-    h, w = frame.shape[:2]
-    detector = _get_detector(w, h)
-    _, faces = detector.detect(frame)
-    boxes = []
-    if faces is None:
-        return boxes
-    for face in faces:
-        x, y, fw, fh = int(face[0]), int(face[1]), int(face[2]), int(face[3])
-        boxes.append((x, y, fw, fh))
-    return boxes
-
-
 def train_class_model(class_id: int) -> tuple:
     """
     Load all face images for a class from the database, compute SFace embeddings,
@@ -116,29 +103,6 @@ def _load_embeddings(class_id: int) -> tuple:
         return emb, lbl
 
     return None, []
-
-
-def recognize_face(face_aligned, class_id: int) -> tuple:
-    embeddings, labels = _load_embeddings(class_id)
-    if embeddings is None or len(embeddings) == 0:
-        return ("Unknown", 0)
-
-    recognizer = _get_recognizer()
-    query = recognizer.feature(face_aligned).flatten()
-
-    query_norm = np.linalg.norm(query)
-    if query_norm < 1e-8:
-        return ("Unknown", 0)
-    norms = np.linalg.norm(embeddings, axis=1)
-    scores = (embeddings @ query) / (norms * query_norm + 1e-8)
-
-    best_idx = int(np.argmax(scores))
-    best_score = float(scores[best_idx])
-    best_label = labels[best_idx]
-
-    if best_score >= 0.363:
-        return (best_label, round(best_score * 100, 1))
-    return ("Unknown", 0)
 
 
 def get_model_status(class_id: int) -> bool:

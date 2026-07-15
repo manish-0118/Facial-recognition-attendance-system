@@ -189,6 +189,3 @@ class DashboardPage(ctk.CTkFrame):
     def refresh(self) -> None:
         self._load()
 
-    def update_user(self, username: str, role: str) -> None:
-        self.username = username
-        self.role = role

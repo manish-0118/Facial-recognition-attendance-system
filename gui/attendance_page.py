@@ -119,25 +119,6 @@ class AttendancePage(ctk.CTkFrame):
         except Exception:
             pass
 
-    def on_page_shown(self) -> None:
-        self._sync_button_state()
-        if self.attendance_process is not None:
-            self._schedule_process_check()
-        try:
-            self._refresh_present_count()
-        except Exception:
-            pass
-
-    def on_page_hidden(self) -> None:
-        # cancel present counter schedule when hidden
-        try:
-            if self._present_after_id:
-                self.after_cancel(self._present_after_id)
-                self._present_after_id = None
-        except Exception:
-            pass
-        return
-
     def start_attendance(self) -> None:
         if self.attendance_process is not None and self.attendance_process.poll() is None:
             self._sync_button_state()
@@ -145,11 +126,10 @@ class AttendancePage(ctk.CTkFrame):
 
         # validate class selection
         if self.selected_class_id is None:
-            # no class chosen
-            if hasattr(self.master_frame, "show_notification"):
-                self.master_frame.show_notification("Please select a class before starting attendance.", "error")
-            elif hasattr(self.master_frame, "notifications") and hasattr(self.master_frame.notifications, "show"):
-                self.master_frame.notifications.show("Please select a class before starting attendance.", kind="error")
+            try:
+                self.winfo_toplevel().show_notification("Please select a class before starting attendance.", "error")
+            except Exception:
+                pass
             self.status_var.set("Please select a class first.")
             return
         selected_class_id = int(self.selected_class_id)
@@ -169,8 +149,6 @@ class AttendancePage(ctk.CTkFrame):
             )
         except Exception as error:
             self.attendance_process = None
-            if hasattr(self.master_frame, "show_action_error"):
-                self.master_frame.show_action_error("Take Attendance", "Unable to launch the standalone attendance session.", error)
             self.status_var.set("Unable to start the attendance session.")
             self._sync_button_state()
             return
@@ -188,9 +166,7 @@ class AttendancePage(ctk.CTkFrame):
         try:
             self.stop_signal_path.open("w").close()
             self.status_var.set("Stop signal sent. Waiting for the attendance window to close.")
-        except Exception as error:
-            if hasattr(self.master_frame, "show_action_error"):
-                self.master_frame.show_action_error("Take Attendance", "Unable to send the stop signal to the attendance session.", error)
+        except Exception:
             return
 
         self._sync_button_state()
@@ -232,11 +208,6 @@ class AttendancePage(ctk.CTkFrame):
             self.stop_signal_path.unlink()
         self.status_var.set("Launch attendance in a separate camera window.")
         self._sync_button_state()
-        if hasattr(self.master_frame, "refresh_dashboard"):
-            self.master_frame.refresh_dashboard()
-        if hasattr(self.master_frame, "refresh_records_view"):
-            self.master_frame.refresh_records_view()
-        # Attendance finalization is handled by the background scheduler
 
     # ------------------------------------------------------------------
     # Present counter helper
@@ -259,6 +230,15 @@ class AttendancePage(ctk.CTkFrame):
             self._present_after_id = self.after(10_000, self._refresh_present_count)
         except Exception:
             pass
+
+    def refresh(self) -> None:
+        prev = self.class_selector.get()
+        self._load_classes()
+        if prev and prev != "Select Class":
+            names = [c["name"] for c in self.class_list]
+            if prev in names:
+                self.class_selector.set(prev)
+                self._on_class_selected(prev)
 
     def _load_classes(self) -> None:
         try:

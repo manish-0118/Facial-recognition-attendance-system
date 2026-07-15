@@ -16,7 +16,6 @@ DEFAULTS = {
         "late_cutoff_time": "06:30",
         "absent_cutoff_time": "07:00",
         "max_classes": "20",
-        "backup_frequency": "daily",
     },
 }
 
@@ -52,21 +51,3 @@ def get_db_config() -> dict:
     }
 
 
-def get_app_config() -> dict:
-    config = _load_config()
-    app = config["app"]
-    return {
-        "late_cutoff_time": app.get("late_cutoff_time", DEFAULTS["app"]["late_cutoff_time"]),
-        "absent_cutoff_time": app.get("absent_cutoff_time", DEFAULTS["app"]["absent_cutoff_time"]),
-        "max_classes": int(app.get("max_classes", DEFAULTS["app"]["max_classes"])),
-        "backup_frequency": app.get("backup_frequency", DEFAULTS["app"]["backup_frequency"]),
-    }
-
-
-def update_config(section: str, key: str, value: str) -> None:
-    config = _load_config()
-    if section not in config:
-        config[section] = {}
-    config[section][key] = str(value)
-    with open(CONFIG_PATH, "w") as f:
-        config.write(f)
